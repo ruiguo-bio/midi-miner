@@ -8,3 +8,4 @@ input_folder contains the original midi files, and output_folder is the destinat
 The output also contains three graphs for the cloud diameter, cloud momentum and tensile strain.
 
 In the example folder, new.mid is the result by running track_separate.py on the old.mid file. Then tension_calculate.py is called with -w 2 parameter. files_result.json records the file key and potential key changing bar position. \_chord_name file is the chord name for every half note. The output of tension, chord, chord name is in pickle format. 
+![Tensile strain of new.mid for every bar](example/new_total)
