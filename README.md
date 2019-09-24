@@ -23,5 +23,7 @@ input_folder contains the original midi files, and output_folder is the destinat
 This will only separate tracks in the file abc.mid. 
 In the example/output folder, abc.mid is the result by running track_separate.py on the example/input/abc.mid file. 
 
+The test_tension.ipynb file is the example to use some functions inside tension_calculate.py.
+
 
 [1] E. Chew. Mathematical and computational modeling of tonality. AMC, 10:12, 2014.
