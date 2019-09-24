@@ -891,7 +891,7 @@ def predict_labels(features, melody_model, bass_model, chord_model):
     return features
 
 
-def predict(all_names, output_folder,melody_model, bass_model, chord_model):
+def predict(all_names, output_folder, melody_model, bass_model, chord_model):
 
     all_file_index = {}
     original_names = []
@@ -1028,6 +1028,8 @@ def get_args(default='.'):
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_folder', default=default, type=str,
                         help="MIDI file input folder")
+    parser.add_argument('-f', '--file_name', default='', type=str,
+                        help="input MIDI file name")
     parser.add_argument('-o', '--output_folder',default=default,type=str,
                         help="MIDI file output folder")
     return parser.parse_args()
@@ -1038,6 +1040,10 @@ if __name__ == "__main__":
     bass_model = pickle.load(open('bass_model','rb'))
     chord_model = pickle.load(open('chord_model','rb'))
 
-    all_names = walk(args.input_folder)
-
-    predict(all_names, args.output_folder, melody_model, bass_model, chord_model)
+    if len(args.file_name) > 0:
+        file_name = [args.file_name]
+        predict(file_name, args.output_folder, melody_model, bass_model, chord_model)
+    else:
+        all_names = walk(args.input_folder)
+        for file_name in all_names:
+            predict(all_names, args.output_folder, melody_model, bass_model, chord_model)
