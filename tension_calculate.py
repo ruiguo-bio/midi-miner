@@ -356,7 +356,12 @@ def merge_tension(metric,window_size=1):
 def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_minor=False):
     try:
 
+        # pm = pretty_midi.PrettyMIDI(file_name)
+        # pm = remove_drum_track(pm)
+        print(file_name)
+
         base_name = os.path.basename(file_name)
+
 
         if key_index is None:
             key_index, is_minor = get_key_index(pm)
@@ -367,7 +372,7 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
         if key_index is None:
             return None,None
 
-        chord_roll_eighth = pickle.load(open(os.path.join(output_folder,base_name+'_chord_eighth'),'rb'))
+        chord_roll_eighth = pickle.load(open(os.path.join(output_folder,base_name[:-4]+'_chord_eighth'),'rb'))
 
 
         key_pos,key_name = cal_key(chord_roll_eighth, key_index, key_given,is_minor)
@@ -398,16 +403,10 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
         centroid_diff = np.linalg.norm(centroid_diff, axis=-1)
         centroid_diff = np.insert(centroid_diff, 0, 0)
 
-
-
-
-
         total_tension = np.array(key_diff) / np.max(key_diff)
 
-
-
         pickle.dump(total_tension, open(os.path.join(output_folder,
-                                                     base_name[:-4]+'_total'),
+                                                     base_name[:-4]+'_tensile_strain'),
                                         'wb'))
 
         pickle.dump(diameters, open(os.path.join(output_folder,
@@ -417,13 +416,13 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
                                                 base_name[:-4] + '_centroid_diff'),
                                    'wb'))
         draw_tension(total_tension,os.path.join(output_folder,
-                                                     base_name[:-4]+'_total.png'))
+                                                     base_name[:-4]+'_tensile_strain.png'))
         draw_tension(diameters, os.path.join(output_folder,
                                                  base_name[:-4] + '_diameter.png'))
         draw_tension(centroid_diff, os.path.join(output_folder,
                                              base_name[:-4] + '_centroid_diff.png'))
 
-        return key_name,key_change_bar
+        return total_tension, diameters, centroid_diff, key_name,key_change_bar
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
         exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
@@ -589,9 +588,9 @@ def extract_notes(file_name,output_folder):
 
         chord_names = chord_roll_to_chord_name(chord_note_merged)
 
-        pickle.dump(chord_note_merged, open(os.path.join(output_folder, base_name+'_chord'), 'wb'))
-        pickle.dump(chord_names, open(os.path.join(output_folder, base_name + '_chord_name'), 'wb'))
-        pickle.dump(piano_roll, open(os.path.join(output_folder, base_name + '_chord_eighth'), 'wb'))
+        pickle.dump(chord_note_merged, open(os.path.join(output_folder, base_name[:-4]+'_chord'), 'wb'))
+        pickle.dump(chord_names, open(os.path.join(output_folder, base_name[:-4] + '_chord_name'), 'wb'))
+        pickle.dump(piano_roll, open(os.path.join(output_folder, base_name[:-4] + '_chord_eighth'), 'wb'))
 
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
@@ -599,7 +598,7 @@ def extract_notes(file_name,output_folder):
         print(exception_str)
         return None
 
-    return pm
+    return pm,chord_names,chord_note_merged
 
 def chord_index_combination(chord_index):
     comb = combinations(chord_index, 3)
@@ -640,26 +639,35 @@ def get_args(default='.'):
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_folder', default=default, type=str,
                         help="MIDI file input folder")
+    parser.add_argument('-f', '--file_name', default='', type=str,
+                        help="input MIDI file name")
     parser.add_argument('-o', '--output_folder',default=default,type=str,
                         help="MIDI file output folder")
     parser.add_argument('-w', '--window_size', default=1, type=int,
                         help="Tension calculation window size, default 1 for half note, double this will double the window")
+
+
     return parser.parse_args()
 
-if __name__ == "__main__":
+if __name__== "__main__":
     args = get_args()
     files_result = {}
-    for path, subdirs, files in os.walk(args.input_folder):
+    for path, _, files in os.walk(args.input_folder):
         for name in files:
 
             if name.endswith('mid') or name.endswith('MID'):
                 file_name = os.path.join(path,name)
-                pm = extract_notes(file_name,args.output_folder)
+
+
+                base_name = os.path.basename(file_name)
+                if len(args.file_name) > 0:
+                    # base_name1 = os.path.basename(args.file_name)
+                    if args.file_name != file_name:
+                        continue
+                pm,chord_names,chord_note = extract_notes(file_name, args.output_folder)
                 if not pm:
                     continue
-                base_name = os.path.basename(file_name)
-
-                key_name,key_change_bar = cal_tension(file_name,pm, args.output_folder, args.window_size)
+                total_tension, diameters, centroid_diff, key_name,key_change_bar = cal_tension(file_name,pm, args.output_folder, args.window_size)
                 if key_name is not None:
                     files_result[base_name[:-4]] = []
                     files_result[base_name[:-4]].append(key_name)
