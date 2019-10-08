@@ -373,12 +373,14 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
             return None,None
 
         chord_roll_eighth = pickle.load(open(os.path.join(output_folder,base_name[:-4]+'_chord_eighth'),'rb'))
+        chord = pickle.load(open(os.path.join(output_folder,base_name[:-4]+'_chord'),'rb'))
+
 
 
         key_pos,key_name = cal_key(chord_roll_eighth, key_index, key_given,is_minor)
 
-        centroids = get_centroid(chord_roll_eighth, key_index,window_size=4)
-        diameters = diameter(chord_roll_eighth, key_index,window_size=4)
+        centroids = get_centroid(chord, key_index,window_size=1)
+        diameters = diameter(chord, key_index,window_size=1)
         silent = np.where(np.linalg.norm(centroids,axis=-1) == 0)
 
         centroids = np.array(centroids)
