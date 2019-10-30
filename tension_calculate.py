@@ -406,6 +406,7 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
         centroid_diff = np.insert(centroid_diff, 0, 0)
 
         total_tension = np.array(key_diff) / np.max(key_diff)
+        diameters = np.array(diameters) / np.max(diameters)
 
         pickle.dump(total_tension, open(os.path.join(output_folder,
                                                      base_name[:-4]+'_tensile_strain'),
