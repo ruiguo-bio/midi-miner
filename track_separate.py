@@ -901,122 +901,121 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
         print(f'the file is {file_name}')
         try:
             features, pm = cal_file_features(file_name)
-        except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
-            exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
-            print(exception_str)
-        if pm is None:
-            continue
-        features = add_labels(features)
 
-        remove_file_duplicate_tracks(features, pm)
-        # print(features.shape)
-        features = predict_labels(features, melody_model, bass_model, chord_model)
-        # print(features.shape)
+            if pm is None:
+                continue
+            features = add_labels(features)
 
-        progs = []
+            remove_file_duplicate_tracks(features, pm)
+            # print(features.shape)
+            features = predict_labels(features, melody_model, bass_model, chord_model)
+            # print(features.shape)
 
-        melody_tracks = np.count_nonzero(features.is_melody == True)
+            progs = []
 
-        bass_tracks = np.count_nonzero(features.is_bass == True)
+            melody_tracks = np.count_nonzero(features.is_melody == True)
 
-        chord_tracks = np.count_nonzero(features.is_chord == True)
+            bass_tracks = np.count_nonzero(features.is_bass == True)
 
-        predicted_melody_tracks = np.count_nonzero(features.melody_predict == True)
+            chord_tracks = np.count_nonzero(features.is_chord == True)
 
-        predicted_bass_tracks = np.count_nonzero(features.bass_predict == True)
+            predicted_melody_tracks = np.count_nonzero(features.melody_predict == True)
 
-        predicted_chord_tracks = np.count_nonzero(features.chord_predict == True)
+            predicted_bass_tracks = np.count_nonzero(features.bass_predict == True)
 
-        if features.shape[0] < 3:
-            print('track number is not greater than 3, skip this file')
-            continue
+            predicted_chord_tracks = np.count_nonzero(features.chord_predict == True)
 
-        temp_index = []
-        if melody_tracks > 0:
-            temp_index.append(features.index[np.where(features.is_melody == True)][0])
-        elif predicted_melody_tracks > 0:
-            predicted_melody_indices = features.index[np.where(features.melody_predict == True)]
-            if len(predicted_melody_indices) > 1:
-                temp_index.append(np.argmax(features.loc[predicted_melody_indices, 'dur']))
-            else:
-                temp_index.append(predicted_melody_indices[0])
-        else:
-            ## pass this song
-            print('no melody track found, skip this file')
-            continue
-        # print(temp_index)
+            if features.shape[0] < 3:
+                print('track number is not greater than 3, skip this file')
+                continue
 
-        progs.append(features.loc[temp_index[0], 'trk_prog'])
-
-        if bass_tracks > 0:
-            temp_index.append(features.index[np.where(features.is_bass == True)][0])
-        elif predicted_bass_tracks > 0:
-            predicted_bass_indices = features.index[np.where(features.bass_predict == True)]
-            if len(predicted_bass_indices) > 1:
-                temp_index.append(np.argmax(features.loc[predicted_bass_indices, 'dur']))
-            else:
-                temp_index.append(predicted_bass_indices[0])
-        else:
-            ## pass this song
-            print('no bass')
-            temp_index.append(-1)
-        # print(temp_index)
-
-        if temp_index[1] != -1:
-            progs.append(features.loc[temp_index[1], 'trk_prog'])
-
-        if chord_tracks > 0:
-            temp_index.append(features.index[np.where(features.is_chord == True)][0])
-        elif predicted_chord_tracks > 0:
-            temp_index.append(features.index[np.where(features.chord_predict == True)][0])
-        else:
-            chord_candicate = np.intersect1d(np.where(features['mean_dur_nor'] > 0.8),
-                                             np.where(features['poly_rate'] > 0.9))
-            if len(chord_candicate) > 0:
-                if len(chord_candicate) > 1:
-                    temp_index.append(np.argmax(features.loc[chord_candicate, 'dur']))
+            temp_index = []
+            if melody_tracks > 0:
+                temp_index.append(features.index[np.where(features.is_melody == True)][0])
+            elif predicted_melody_tracks > 0:
+                predicted_melody_indices = features.index[np.where(features.melody_predict == True)]
+                if len(predicted_melody_indices) > 1:
+                    temp_index.append(np.argmax(features.loc[predicted_melody_indices, 'dur']))
                 else:
-                    temp_index.append(features.index[chord_candicate[0]])
+                    temp_index.append(predicted_melody_indices[0])
             else:
-                temp_index.append(-2)
-        # print(temp_index)
+                ## pass this song
+                print('no melody track found, skip this file')
+                continue
+            # print(temp_index)
 
-        if temp_index[2] != -2:
-            progs.append(features.loc[temp_index[2], 'trk_prog'])
+            progs.append(features.loc[temp_index[0], 'trk_prog'])
 
-        dur_sort_indices = features.dur[features.dur > 0.5].iloc[
-            np.argsort(features.dur[features.dur > 0.5])].index.values
-        for index in dur_sort_indices[::-1]:
-            if index not in temp_index:
-                if features.loc[index, 'trk_prog'] not in progs:
-                    temp_index.append(index)
-                    # print(temp_index)
-                    if len(temp_index) > 4:
-                        break
+            if bass_tracks > 0:
+                temp_index.append(features.index[np.where(features.is_bass == True)][0])
+            elif predicted_bass_tracks > 0:
+                predicted_bass_indices = features.index[np.where(features.bass_predict == True)]
+                if len(predicted_bass_indices) > 1:
+                    temp_index.append(np.argmax(features.loc[predicted_bass_indices, 'dur']))
+                else:
+                    temp_index.append(predicted_bass_indices[0])
+            else:
+                ## pass this song
+                print('no bass')
+                temp_index.append(-1)
+            # print(temp_index)
 
-        if np.sum(np.array(temp_index) >= 0) < 3:
-            print('result track number is not greater than 2, skip this file')
-            continue
-        [int(index) for index in temp_index]
+            if temp_index[1] != -1:
+                progs.append(features.loc[temp_index[1], 'trk_prog'])
 
-        all_file_index[os.path.basename(file_name)] = [int(index) for index in temp_index]
+            if chord_tracks > 0:
+                temp_index.append(features.index[np.where(features.is_chord == True)][0])
+            elif predicted_chord_tracks > 0:
+                temp_index.append(features.index[np.where(features.chord_predict == True)][0])
+            else:
+                chord_candicate = np.intersect1d(np.where(features['mean_dur_nor'] > 0.8),
+                                                 np.where(features['poly_rate'] > 0.9))
+                if len(chord_candicate) > 0:
+                    if len(chord_candicate) > 1:
+                        temp_index.append(np.argmax(features.loc[chord_candicate, 'dur']))
+                    else:
+                        temp_index.append(features.index[chord_candicate[0]])
+                else:
+                    temp_index.append(-2)
+            # print(temp_index)
 
-        # print(temp_index)
-        # print(len(pm.instruments))
+            if temp_index[2] != -2:
+                progs.append(features.loc[temp_index[2], 'trk_prog'])
 
-        pm_new = deepcopy(pm)
-        pm_new.instruments = []
-        for i in temp_index:
-            if i >= 0:
-                pm_new.instruments.append(deepcopy(pm.instruments[i]))
+            dur_sort_indices = features.dur[features.dur > 0.5].iloc[
+                np.argsort(features.dur[features.dur > 0.5])].index.values
+            for index in dur_sort_indices[::-1]:
+                if index not in temp_index:
+                    if features.loc[index, 'trk_prog'] not in progs:
+                        temp_index.append(index)
+                        # print(temp_index)
+                        if len(temp_index) > 4:
+                            break
 
-        basename = os.path.basename(file_name)
-        original_names.append(file_name)
-        # print(file_name)
-        # print(len(pm.instruments))
-        output_name = os.path.join(output_folder,basename)
-        pm_new.write(output_name)
+            if np.sum(np.array(temp_index) >= 0) < 3:
+                print('result track number is not greater than 2, skip this file')
+                continue
+            [int(index) for index in temp_index]
 
+            all_file_index[os.path.basename(file_name)] = [int(index) for index in temp_index]
+
+            # print(temp_index)
+            # print(len(pm.instruments))
+
+            pm_new = deepcopy(pm)
+            pm_new.instruments = []
+            for i in temp_index:
+                if i >= 0:
+                    pm_new.instruments.append(deepcopy(pm.instruments[i]))
+
+            basename = os.path.basename(file_name)
+            original_names.append(file_name)
+            # print(file_name)
+            # print(len(pm.instruments))
+            output_name = os.path.join(output_folder,basename)
+            pm_new.write(output_name)
+        except Exception as e:
+            pass
 
     with open(os.path.join(output_folder,'result.json'), 'w') as fp:
         json.dump(all_file_index, fp)
