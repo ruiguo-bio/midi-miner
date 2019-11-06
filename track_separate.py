@@ -1045,5 +1045,4 @@ if __name__ == "__main__":
         predict(file_name, args.output_folder, melody_model, bass_model, chord_model)
     else:
         all_names = walk(args.input_folder)
-        for file_name in all_names:
-            predict(all_names, args.output_folder, melody_model, bass_model, chord_model)
+        predict(all_names, args.output_folder, melody_model, bass_model, chord_model)

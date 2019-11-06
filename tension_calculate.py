@@ -286,7 +286,7 @@ def key_search(ce, shift,key_given=False,is_minor=False):
     minor_key_pos = minor_key_position(note_index_to_pitch_index[shift][minor_shift])
     if is_minor:
         result = f'minor {pitch_index_to_flat_names[minor_shift]}'
-        print(result)
+        # print(result)
         return minor_key_pos,result
     diff_major = np.linalg.norm(ce - major_key_pos)
 
@@ -295,29 +295,29 @@ def key_search(ce, shift,key_given=False,is_minor=False):
     if shift in sharp_index:
         if key_given:
             result = f'major {pitch_index_to_sharp_names[shift]}'
-            print(result)
+            # print(result)
             return major_key_pos,result
         if diff_major < diff_minor:
             result = f'major {pitch_index_to_sharp_names[shift]}'
-            print(result)
+            # print(result)
             return major_key_pos,result
         else:
             result = f'minor {pitch_index_to_sharp_names[minor_shift]}'
-            print(result)
+            # print(result)
             return minor_key_pos,result
     else:
         if key_given:
             result = f'major {pitch_index_to_flat_names[shift]}'
-            print(result)
+            # print(result)
             return major_key_pos,result
 
         if diff_major < diff_minor:
             result = f'major {pitch_index_to_flat_names[shift]}'
-            print(result)
+            # print(result)
             return major_key_pos,result
         else:
             result = f'minor {pitch_index_to_flat_names[minor_shift]}'
-            print(result)
+            # print(result)
             return minor_key_pos,result
 
 
@@ -342,7 +342,7 @@ def note_to_index(pianoroll):
 
 def merge_tension(metric,window_size=1):
     if window_size == 1:
-        return metric
+        return metric, beats
     new_metric = []
     if len(metric.shape) > 1:
         for i in range(0, len(metric), window_size):
@@ -353,12 +353,12 @@ def merge_tension(metric,window_size=1):
     return new_metric
 
 
-def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_minor=False):
+def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=None, is_minor=False):
     try:
 
         # pm = pretty_midi.PrettyMIDI(file_name)
         # pm = remove_drum_track(pm)
-        print(file_name)
+        # print(file_name)
 
         base_name = os.path.basename(file_name)
 
@@ -391,7 +391,16 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
 
         key_diff[silent] = 0
 
-        key_change_bar = detect_key_change(key_diff, pm)
+        key_change_bar,change_time = detect_key_change(key_diff, pm)
+
+        if key_change_bar != -1:
+            ## assume 4/4 beat
+            key_index, is_minor = get_key_index_change(pm,change_time)
+            change_key_pos, change_key_name = cal_key(chord_roll_eighth[:,:key_change_bar*8], key_index, key_given, is_minor)
+            # print(f'new key name is {change_key_name}')
+        else:
+            change_key_name = ''
+
 
         key_diff = merge_tension(key_diff,window_size)
         diameters = merge_tension(diameters,window_size)
@@ -425,7 +434,7 @@ def cal_tension(file_name, pm, output_folder, window_size=1,key_index=None, is_m
         draw_tension(centroid_diff, os.path.join(output_folder,
                                              base_name[:-4] + '_centroid_diff.png'))
 
-        return total_tension, diameters, centroid_diff, key_name,key_change_bar
+        return total_tension, diameters, centroid_diff, key_name,key_change_bar, change_key_name,beats[::window_size]
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
         exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
@@ -453,6 +462,27 @@ def get_key_index(pm):
         for i,note in enumerate(instrument.notes):
             if note.end > end_time:
                 instrument.notes = instrument.notes[:i]
+                break
+    pitches = new_pm.get_pitch_class_histogram(use_duration=True)
+    frequent = pitches.argsort(axis=0)[-7:]
+    frequent.sort()
+    frequent = tuple(frequent)
+
+    diatonic_scales,harmonic_scales = get_scales()
+    if frequent in diatonic_scales:
+        return diatonic_scales.index(frequent),False
+    if frequent in harmonic_scales:
+        return harmonic_scales.index(frequent),True
+    return None,None
+
+
+def get_key_index_change(pm,start_time):
+
+    new_pm = copy.deepcopy(pm)
+    for instrument in new_pm.instruments:
+        for i,note in enumerate(instrument.notes):
+            if note.start > start_time:
+                instrument.notes = instrument.notes[i:]
                 break
     pitches = new_pm.get_pitch_class_histogram(use_duration=True)
     frequent = pitches.argsort(axis=0)[-7:]
@@ -525,9 +555,10 @@ def detect_key_change(key_diff, pm):
             down_beats = pm.get_downbeats()
             beats = pm.get_beats()
             bar = np.where(beats[32 + i*2] < down_beats)[0][0]
-            print(f'the key changed after bar {bar + 2}')
-            return bar + 2
-    return -1
+            # print(f'the key changed after bar {bar + 2}')
+
+            return bar + 2, down_beats[bar+2]
+    return -1,-1
 
 
 def draw_tension(values,file_name):
@@ -572,7 +603,7 @@ def extract_notes(file_name,output_folder):
     try:
         pm = pretty_midi.PrettyMIDI(file_name)
         pm = remove_drum_track(pm)
-        print(file_name)
+        # print(file_name)
 
         base_name = os.path.basename(file_name)
         beats = pm.get_beats()
@@ -601,7 +632,7 @@ def extract_notes(file_name,output_folder):
         print(exception_str)
         return None
 
-    return pm,chord_names,chord_note_merged
+    return pm,chord_names,chord_note_merged,eighth_beats
 
 def chord_index_combination(chord_index):
     comb = combinations(chord_index, 3)
@@ -667,14 +698,21 @@ if __name__== "__main__":
                     # base_name1 = os.path.basename(args.file_name)
                     if args.file_name != file_name:
                         continue
-                pm,chord_names,chord_note = extract_notes(file_name, args.output_folder)
+                pm,chord_names,chord_note,beats = extract_notes(file_name, args.output_folder)
                 if not pm:
                     continue
-                total_tension, diameters, centroid_diff, key_name,key_change_bar = cal_tension(file_name,pm, args.output_folder, args.window_size)
+                total_tension, diameters, centroid_diff, key_name,key_change_bar,key_change_name, beats= cal_tension(file_name, pm, beats, args.output_folder, args.window_size)
                 if key_name is not None:
                     files_result[base_name[:-4]] = []
                     files_result[base_name[:-4]].append(key_name)
                     files_result[base_name[:-4]].append(int(key_change_bar))
+                    files_result[base_name[:-4]].append(key_change_name)
+                    print(f'file name is {file_name}')
+                    print(f'key name is {key_name}')
+                    if key_change_bar != -1:
+                        print(f'key change bar is {key_change_bar}')
+                        print(f'new key name is {key_change_name}')
+
                 else:
                     print(f'cannot find the key of song {file_name}, skip this file')
 
