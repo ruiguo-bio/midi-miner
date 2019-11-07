@@ -115,14 +115,20 @@ radius = 1.0
 
 
 
-def diameter(piano_roll, shift,window_size=4):
+def diameter(piano_roll, shift, key_changed_bar, shift_new, window_size=4):
 
     diameters = []
     for i in range(0, piano_roll.shape[1]):
         indices = []
         for index, j in enumerate(piano_roll[:,i]):
             if j > 0:
-                indices.append(note_index_to_pitch_index[shift][index % 12])
+                if i / 2 > key_changed_bar:
+                    if key_changed_bar != -1:
+                        indices.append(note_index_to_pitch_index[shift_new][index % 12])
+                    else:
+                        indices.append(note_index_to_pitch_index[shift][index % 12])
+                else:
+                    indices.append(note_index_to_pitch_index[shift][index % 12])
 
         diameters.append(cal_diameter(indices))
 
@@ -380,26 +386,29 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
         key_pos,key_name = cal_key(chord_roll_eighth, key_index, key_given,is_minor)
 
         centroids = get_centroid(chord, key_index,window_size=1)
-        diameters = diameter(chord, key_index,window_size=1)
-        silent = np.where(np.linalg.norm(centroids,axis=-1) == 0)
-
+        silent = np.where(np.linalg.norm(centroids, axis=-1) == 0)
         centroids = np.array(centroids)
-        diameters = np.array(diameters)
 
         key_diff = centroids - key_pos
         key_diff = np.linalg.norm(key_diff, axis=-1)
 
         key_diff[silent] = 0
 
-        key_change_bar,change_time = detect_key_change(key_diff, pm)
+        key_change_bar, change_time = detect_key_change(key_diff, pm)
 
         if key_change_bar != -1:
             ## assume 4/4 beat
-            key_index, is_minor = get_key_index_change(pm,change_time)
-            change_key_pos, change_key_name = cal_key(chord_roll_eighth[:,:key_change_bar*8], key_index, key_given, is_minor)
+            key_index_new, is_minor_new = get_key_index_change(pm, change_time)
+            change_key_pos, change_key_name = cal_key(chord_roll_eighth[:, :key_change_bar * 8], key_index_new, key_given,
+                                                      is_minor_new)
             # print(f'new key name is {change_key_name}')
         else:
             change_key_name = ''
+
+        diameters = diameter(chord, key_index,key_change_bar, key_index_new, window_size=1)
+
+        diameters = np.array(diameters)
+
 
 
         key_diff = merge_tension(key_diff,window_size)
@@ -416,6 +425,7 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
 
         total_tension = np.array(key_diff) / np.max(key_diff)
         diameters = np.array(diameters) / np.max(diameters)
+        centroid_diff = np.array(centroid_diff) / np.max(centroid_diff)
 
         pickle.dump(total_tension, open(os.path.join(output_folder,
                                                      base_name[:-4]+'_tensile_strain'),
