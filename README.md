@@ -26,4 +26,10 @@ In the example/output folder, abc.mid is the result by running track_separate.py
 The test_tension.ipynb file is the example to use some functions inside tension_calculate.py.
 
 
+
+
+
+![mp3 file of abc.mid](example/output/abc.mp3)
+![output of  abc.mid tension in gif](example/output/abc.gif)
+
 [1] E. Chew. Mathematical and computational modeling of tonality. AMC, 10:12, 2014.
