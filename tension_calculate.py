@@ -115,7 +115,7 @@ radius = 1.0
 
 
 
-def diameter(piano_roll, shift, key_changed_bar, shift_new, window_size=4):
+def diameter(piano_roll, shift, key_changed_bar, shift_new):
 
     diameters = []
     for i in range(0, piano_roll.shape[1]):
@@ -132,13 +132,13 @@ def diameter(piano_roll, shift, key_changed_bar, shift_new, window_size=4):
 
         diameters.append(cal_diameter(indices))
 
-    merged_diameter = []
-    for time_step in range(0, len(diameters) - window_size, window_size):
-        merged_diameter.append(np.mean(diameters[time_step:time_step + window_size], axis=0))
-    if time_step != len(diameters) - 1:
-        merged_diameter.append(np.mean(diameters[time_step:], axis=0))
+    # merged_diameter = []
+    # for time_step in range(0, len(diameters) - window_size, window_size):
+    #     merged_diameter.append(np.mean(diameters[time_step:time_step + window_size], axis=0))
+    # if time_step != len(diameters) - 1:
+    #     merged_diameter.append(np.mean(diameters[time_step:], axis=0))
 
-    return merged_diameter
+    return diameters
 
 
 def cal_diameter(pitches):
@@ -348,7 +348,7 @@ def note_to_index(pianoroll):
 
 def merge_tension(metric,window_size=1):
     if window_size == 1:
-        return metric, beats
+        return metric
     new_metric = []
     if len(metric.shape) > 1:
         for i in range(0, len(metric), window_size):
@@ -401,11 +401,12 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
             key_index_new, is_minor_new = get_key_index_change(pm, change_time)
             change_key_pos, change_key_name = cal_key(chord_roll_eighth[:, :key_change_bar * 8], key_index_new, key_given,
                                                       is_minor_new)
+            diameters = diameter(chord, key_index, key_change_bar, key_index_new)
+
             # print(f'new key name is {change_key_name}')
         else:
             change_key_name = ''
-
-        diameters = diameter(chord, key_index,key_change_bar, key_index_new, window_size=1)
+            diameters = diameter(chord, key_index, key_change_bar, key_index)
 
         diameters = np.array(diameters)
 
@@ -423,9 +424,14 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
         centroid_diff = np.linalg.norm(centroid_diff, axis=-1)
         centroid_diff = np.insert(centroid_diff, 0, 0)
 
-        total_tension = np.array(key_diff) / np.max(key_diff)
-        diameters = np.array(diameters) / np.max(diameters)
-        centroid_diff = np.array(centroid_diff) / np.max(centroid_diff)
+        if np.max(key_diff) > 0:
+            total_tension = np.array(key_diff) / np.max(key_diff)
+
+        if np.max(diameters) > 0:
+            diameters = diameters / np.max(diameters)
+
+        if np.max(diameters) > 0:
+            centroid_diff = np.array(centroid_diff) / np.max(centroid_diff)
 
         pickle.dump(total_tension, open(os.path.join(output_folder,
                                                      base_name[:-4]+'_tensile_strain'),
@@ -528,8 +534,8 @@ def get_piano_roll(pm,beat_times):
 
     return piano_roll
 
-def get_centroid(piano_roll,key_index,window_size=4):
-    # widow_size=4 means to merge notes in a half note window
+def get_centroid(piano_roll,key_index,window_size=1):
+    # window_size=1 is half note, 2 is whole note
     centroids = list()
 
     for time_step in range(0,piano_roll.shape[1]):
@@ -546,7 +552,7 @@ def get_centroid(piano_roll,key_index,window_size=4):
 def detect_key_change(key_diff, pm):
     ratios = []
 
-    # 16 means 16 half notes, 32 beats
+    # 16 means 16 half notes, 8 bars, 32 beats
     for i in range(16, key_diff.shape[0]-16):
         if np.any(key_diff[i - 16:i + 16] == 0):
             ratios.append(0)
@@ -582,9 +588,8 @@ def draw_tension(values,file_name):
         values = np.array(values)
 
     plt.xticks(xtick)
-    minimum = np.min(values[values!=0])
-    maximum = np.max(values)
-    plt.ylim(minimum, maximum)
+
+    plt.ylim(0, 1)
     plt.scatter(xtick, values)
     plt.savefig(file_name)
     plt.close('all')
@@ -609,7 +614,7 @@ def remove_drum_track(pm):
     return pm
 
 
-def extract_notes(file_name,output_folder):
+def extract_notes(file_name,output_folder,window_size=4):
     try:
         pm = pretty_midi.PrettyMIDI(file_name)
         pm = remove_drum_track(pm)
@@ -628,7 +633,7 @@ def extract_notes(file_name,output_folder):
         piano_roll = get_piano_roll(pm, eighth_beats)
 
         # window_size = 4 means half note is the window length(4*eighth note)
-        chord_note_merged = merge_piano_roll(piano_roll,window_size=4)
+        chord_note_merged = merge_piano_roll(piano_roll,window_size=window_size)
 
         chord_names = chord_roll_to_chord_name(chord_note_merged)
 
@@ -708,10 +713,15 @@ if __name__== "__main__":
                     # base_name1 = os.path.basename(args.file_name)
                     if args.file_name != file_name:
                         continue
-                pm,chord_names,chord_note,beats = extract_notes(file_name, args.output_folder)
+
+                pm, chord_names, chord_note, beats = extract_notes(file_name, args.output_folder)
+
+                # pm,chord_names,chord_note,beats = extract_notes(file_name, args.output_folder)
                 if not pm:
                     continue
-                total_tension, diameters, centroid_diff, key_name,key_change_bar,key_change_name, beats= cal_tension(file_name, pm, beats, args.output_folder, args.window_size)
+                total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
+                    file_name, pm, beats, args.output_folder, args.window_size)
+
                 if key_name is not None:
                     files_result[base_name[:-4]] = []
                     files_result[base_name[:-4]].append(key_name)
