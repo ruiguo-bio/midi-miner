@@ -17,7 +17,7 @@ will generate the tension files for abc.mid in the output folder.
 If the input song key cannot be detected, the tension cannot be calculated. In that case, a given key will help. <br/>tension_calculate.py -i _input_folder_ -o _output_folder_ -f abc.mid -w 2 -k 0 -m True<br/>
 -k 0 means pitch index 0, -m True means the key is A minor. If -m not set, the key is C major here.
 -k 1 means pitch index 1, if -m is not set, they key is Db major here.
-The key and minor arguments should be set only when the song key is hard to be detected(e.g. when the songs is very short).
+The key and minor arguments should be set only when the song key is hard to be detected(e.g. when the song is very short).
 
 
 
