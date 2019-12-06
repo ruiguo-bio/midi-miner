@@ -3,16 +3,23 @@ Python MIDI track classifier and tonal tension calculation based on spiral array
 ## Usage
 
 
-1. **Total tension and chord calculator**. It will output three tension metrics for the midi file. The tension metrics are based on the spiral array theory proposed in [1], which includes cloud diameter, cloud momentum and tensile strain. The chord name for each half note window, key of the song and the key changing bar position of the song are also the result of calling tension_calculate.py.  The tension calculation length window could be set by parameter -w. -w 1 will set that to default value half note. -w 2 will double that window and each bar will output one tension value.<br/> **Example:**<br/>tension_calculate.py -i _input_folder_ -o _output_folder_ -w 1<br/>
+1. **Total tension and chord calculator**. It will output three tension metrics for the midi file. The tension metrics are based on the spiral array theory proposed in [1], which includes cloud diameter, cloud momentum and tensile strain. The chord name for each half note window, key of the song and the key changing bar position of the song are also the result of calling tension_calculate.py.  The tension calculation length window could be set by parameter -w. -w 1 set the window to  half note. -w 2 will double that window and each bar will output one tension value. The default window value is 1 for every half note.<br/> **Example:**<br/>tension_calculate.py -i _input_folder_ -o _output_folder_ -w 1<br/>
 This will run tension_calculate.py on all the file in the _input_folder_ and output the result in 
 _output_folder_. -w 1 is to calcualte tension for every half note.
 **Example:**<br/>tension_calculate.py -i _input_folder_ -o _output_folder_ -f abc.mid -w 2<br/>
 This will run tension_calculate.py on the file abc.mid in the _input_folder_ and output the result in 
-_output_folder_. -w 2 is to calculate tension for every bar. 
+_output_folder_. -w 2 is to calculate tension for every bar. Because the minimum window length is half note(-w 1), please ensure the midi file will not lose information for that. If a midi file changes chord every quarter note, information will be lost in that case.
 
 In the example folder, 
 tension_calculate.py -i input/ -o output/ -f abc.mid -w 2
 will generate the tension files for abc.mid in the output folder.
+
+If the input song key cannot be detected, the tension cannot be calculated. In that case, a given key will help. <br/>tension_calculate.py -i _input_folder_ -o _output_folder_ -f abc.mid -w 2 -k 0 -m True<br/>
+-k 0 means pitch index 0, -m True means the key is A minor. If -m not set, the key is C major here.
+-k 1 means pitch index 1, if -m is not set, they key is Db major here.
+The key and minor arguments should be set only when the song key is hard to be detected(e.g. when the song is very short).
+
+
 
 files_result.json records the file key and potential key changing bar position. \_chord_name file is the chord name for every half note. The output of tension, chord, chord name is in pickle format. Below is the figure of tensile strain of abc.mid for every bar. 
 ![Tensile strain of abc.mid for every bar](example/output/abc_tensile_strain.png)
