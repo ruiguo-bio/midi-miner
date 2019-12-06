@@ -694,7 +694,10 @@ def get_args(default='.'):
                         help="MIDI file output folder")
     parser.add_argument('-w', '--window_size', default=1, type=int,
                         help="Tension calculation window size, default 1 for half note, double this will double the window")
-
+    parser.add_argument('-k', '--key_index', default=-1, type=int,
+                        help="key index for the song key, e.g. 0 for C, 1 for Db")
+    parser.add_argument('-m', '--is_minor', default='', type=str,
+                        help="major or minor key, set it to True or False")
 
     return parser.parse_args()
 
@@ -719,8 +722,25 @@ if __name__== "__main__":
                 # pm,chord_names,chord_note,beats = extract_notes(file_name, args.output_folder)
                 if not pm:
                     continue
-                total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
-                    file_name, pm, beats, args.output_folder, args.window_size)
+
+                try:
+                    if 0 <= args.key_index < 12:
+                        key_index = args.key_index
+                        if len(args.is_minor) > 0 and args.is_minor == 'True':
+                            is_minor = True
+                            total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
+                                file_name, pm, beats, args.output_folder, args.window_size,key_index,is_minor)
+                        else:
+                            total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
+                                file_name, pm, beats, args.output_folder, args.window_size, key_index)
+                    else:
+                        total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
+                            file_name, pm, beats, args.output_folder, args.window_size)
+
+                    
+                except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
+                    exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
+                    print(exception_str)
 
                 if key_name is not None:
                     files_result[base_name[:-4]] = []
