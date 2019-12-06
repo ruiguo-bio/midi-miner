@@ -714,7 +714,7 @@ if __name__== "__main__":
                 base_name = os.path.basename(file_name)
                 if len(args.file_name) > 0:
                     # base_name1 = os.path.basename(args.file_name)
-                    if args.file_name != file_name:
+                    if args.file_name != name:
                         continue
 
                 pm, chord_names, chord_note, beats = extract_notes(file_name, args.output_folder)
