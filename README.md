@@ -8,7 +8,7 @@ This will run tension_calculate.py on all the file in the _input_folder_ and out
 _output_folder_. -w 1 is to calcualte tension for every half note.
 **Example:**<br/>tension_calculate.py -i _input_folder_ -o _output_folder_ -f abc.mid -w 2<br/>
 This will run tension_calculate.py on the file abc.mid in the _input_folder_ and output the result in 
-_output_folder_. -w 2 is to calculate tension for every bar. 
+_output_folder_. -w 2 is to calculate tension for every bar. Because the minimum window length is half note(-w 1), please ensure the midi file will not lose information for that. If a midi file changes chord every quarter note, information will be lost in that case.
 
 In the example folder, 
 tension_calculate.py -i input/ -o output/ -f abc.mid -w 2
@@ -18,6 +18,7 @@ If the input song key cannot be detected, the tension cannot be calculated. In t
 -k 0 means pitch index 0, -m True means the key is A minor. If -m not set, the key is C major here.
 -k 1 means pitch index 1, if -m is not set, they key is Db major here.
 The key and minor arguments should be set only when the song key is hard to be detected(e.g. when the songs is very short).
+
 
 
 files_result.json records the file key and potential key changing bar position. \_chord_name file is the chord name for every half note. The output of tension, chord, chord name is in pickle format. Below is the figure of tensile strain of abc.mid for every bar. 
