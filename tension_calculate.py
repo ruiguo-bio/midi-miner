@@ -399,9 +399,16 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
         if key_change_bar != -1:
             ## assume 4/4 beat
             key_index_new, is_minor_new = get_key_index_change(pm, change_time)
-            change_key_pos, change_key_name = cal_key(chord_roll_eighth[:, :key_change_bar * 8], key_index_new, key_given,
-                                                      is_minor_new)
-            diameters = diameter(chord, key_index, key_change_bar, key_index_new)
+
+            if key_index_new != None:
+                diameters = diameter(chord, key_index, key_change_bar, key_index_new)
+                change_key_pos, change_key_name = cal_key(chord_roll_eighth[:, :key_change_bar * 8], key_index_new,
+                                                          key_given,
+                                                          is_minor_new)
+            else:
+                diameters = diameter(chord, key_index, -1, key_index)
+                change_key_name = 'Unknown'
+
 
             # print(f'new key name is {change_key_name}')
         else:
@@ -489,6 +496,20 @@ def get_key_index(pm):
         return diatonic_scales.index(frequent),False
     if frequent in harmonic_scales:
         return harmonic_scales.index(frequent),True
+
+
+    # if cannot find key, use each track to try again
+
+    for instrument in new_pm.instruments:
+        pitches = instrument.get_pitch_class_histogram(use_duration=True)
+        frequent = pitches.argsort(axis=0)[-7:]
+        frequent.sort()
+        frequent = tuple(frequent)
+        if frequent in diatonic_scales:
+            return diatonic_scales.index(frequent), False
+        if frequent in harmonic_scales:
+            return harmonic_scales.index(frequent), True
+
     return None,None
 
 
@@ -510,6 +531,20 @@ def get_key_index_change(pm,start_time):
         return diatonic_scales.index(frequent),False
     if frequent in harmonic_scales:
         return harmonic_scales.index(frequent),True
+
+        # if cannot find key, use each track to try again
+
+    for instrument in new_pm.instruments:
+        pitches = instrument.get_pitch_class_histogram(use_duration=True)
+        frequent = pitches.argsort(axis=0)[-7:]
+        frequent.sort()
+        frequent = tuple(frequent)
+        if frequent in diatonic_scales:
+            return diatonic_scales.index(frequent), False
+        if frequent in harmonic_scales:
+            return harmonic_scales.index(frequent), True
+
+
     return None,None
 
 
@@ -703,7 +738,12 @@ def get_args(default='.'):
 
 if __name__== "__main__":
     args = get_args()
-    files_result = {}
+    output_json_name = os.path.join(args.output_folder, "files_result.json")
+    if os.path.exists(output_json_name):
+        with open(output_json_name, 'r') as f:
+            files_result = json.load(f)
+    else:
+        files_result = {}
     for path, _, files in os.walk(args.input_folder):
         for name in files:
 
@@ -716,7 +756,7 @@ if __name__== "__main__":
                     # base_name1 = os.path.basename(args.file_name)
                     if args.file_name != name:
                         continue
-
+                print(f'working on file {file_name}')
                 pm, chord_names, chord_note, beats = extract_notes(file_name, args.output_folder)
 
                 # pm,chord_names,chord_note,beats = extract_notes(file_name, args.output_folder)
@@ -734,8 +774,16 @@ if __name__== "__main__":
                             total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
                                 file_name, pm, beats, args.output_folder, args.window_size, key_index)
                     else:
-                        total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = cal_tension(
+                        result = cal_tension(
                             file_name, pm, beats, args.output_folder, args.window_size)
+                        if len(result) == 2:
+                            key_name = None
+                        else:
+                            total_tension, diameters, centroid_diff, key_name, key_change_bar, key_change_name, beats = result
+
+
+
+
 
                     
                 except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
@@ -747,7 +795,7 @@ if __name__== "__main__":
                     files_result[base_name[:-4]].append(key_name)
                     files_result[base_name[:-4]].append(int(key_change_bar))
                     files_result[base_name[:-4]].append(key_change_name)
-                    print(f'file name is {file_name}')
+
                     print(f'key name is {key_name}')
                     if key_change_bar != -1:
                         print(f'key change bar is {key_change_bar}')
