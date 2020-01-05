@@ -56,8 +56,8 @@ chord_name_to_index = {'C':C,'Cm':Cm,'Csus4':Csus4,
                    'Des':Des,'Fis':Fis}
 
 
-pitch_index_to_sharp_names = ['C','C#','D','#D','E','F','#F','G',
-                              '#G','A','#A','B']
+pitch_index_to_sharp_names = ['C','C#','D','D#','E','F','F#','G',
+                              'G#','A','A#','B']
 
 
 pitch_index_to_flat_names = ['C','Db','D','Eb','E','F','Gb','G',
@@ -291,8 +291,11 @@ def key_search(ce, shift,key_given=False,is_minor=False):
 
     minor_key_pos = minor_key_position(note_index_to_pitch_index[shift][minor_shift])
     if is_minor:
-        result = f'minor {pitch_index_to_flat_names[minor_shift]}'
-        # print(result)
+        if shift in sharp_index:
+            result = f'minor {pitch_index_to_sharp_names[minor_shift]}'
+        else:
+            result = f'minor {pitch_index_to_flat_names[minor_shift]}'
+
         return minor_key_pos,result
     diff_major = np.linalg.norm(ce - major_key_pos)
 
@@ -672,6 +675,14 @@ def extract_notes(file_name,output_folder,window_size=4):
 
         chord_names = chord_roll_to_chord_name(chord_note_merged)
 
+        # pm.instruments = pm.instruments[:3]
+        # piano_roll_new = pm.get_piano_roll(times=eighth_beats)
+        # np.nan_to_num(piano_roll_new, copy=False)
+        # piano_roll_new = piano_roll_new > 0
+        # piano_roll_new = piano_roll_new.astype(int)
+        # chord_note_merged = merge_piano_roll(piano_roll_new, window_size=window_size)
+
+
         pickle.dump(chord_note_merged, open(os.path.join(output_folder, base_name[:-4]+'_chord'), 'wb'))
         pickle.dump(chord_names, open(os.path.join(output_folder, base_name[:-4] + '_chord_name'), 'wb'))
         pickle.dump(piano_roll, open(os.path.join(output_folder, base_name[:-4] + '_chord_eighth'), 'wb'))
@@ -757,9 +768,9 @@ if __name__== "__main__":
                     if args.file_name != name:
                         continue
                 print(f'working on file {file_name}')
+
                 pm, chord_names, chord_note, beats = extract_notes(file_name, args.output_folder)
 
-                # pm,chord_names,chord_note,beats = extract_notes(file_name, args.output_folder)
                 if not pm:
                     continue
 

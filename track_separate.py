@@ -956,8 +956,10 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                     temp_index.append(predicted_bass_indices[0])
             else:
                 ## pass this song
-                print('no bass')
-                temp_index.append(-1)
+                print('no bass, pass this song')
+                continue
+                # temp_index.append(-1)
+
             # print(temp_index)
 
             if temp_index[1] != -1:
@@ -1013,12 +1015,14 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
             # print(file_name)
             # print(len(pm.instruments))
             output_name = os.path.join(output_folder,basename)
+            if not os.path.exists(output_folder):
+                os.mkdir(output_folder)
             pm_new.write(output_name)
         except Exception as e:
             pass
 
     with open(os.path.join(output_folder,'result.json'), 'w') as fp:
-        json.dump(all_file_index, fp)
+        json.dump(all_file_index, fp, ensure_ascii=False)
 
 
     return
@@ -1035,9 +1039,10 @@ def get_args(default='.'):
 
 if __name__ == "__main__":
     args = get_args()
-    melody_model = pickle.load(open('melody_model','rb'))
-    bass_model = pickle.load(open('bass_model','rb'))
-    chord_model = pickle.load(open('chord_model','rb'))
+    running_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+    melody_model = pickle.load(open(running_dir + '/melody_model','rb'))
+    bass_model = pickle.load(open(running_dir+ '/bass_model','rb'))
+    chord_model = pickle.load(open(running_dir+ '/chord_model','rb'))
 
     if len(args.file_name) > 0:
         file_name = [args.file_name]
