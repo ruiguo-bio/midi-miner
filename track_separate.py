@@ -14,6 +14,8 @@ from copy import deepcopy
 import sys
 import argparse
 import json
+import logging
+import coloredlogs
 
 
 def remove_drum_empty_track(midi_file):
@@ -33,7 +35,7 @@ def remove_drum_empty_track(midi_file):
         pretty_midi_data = pretty_midi.PrettyMIDI(midi_file)
 
     except Exception as e:
-        print(f'exceptions in read the file {midi_file}')
+        logger.info(f'exceptions in read the file {midi_file}')
         return None, None
 
     ### remove drum track
@@ -47,7 +49,7 @@ def remove_drum_empty_track(midi_file):
     try:
         pypiano_data.parse_pretty_midi(pretty_midi_data)
     except Exception as e:
-        print(f'exceptions for pypianoroll in read the file {midi_file}')
+        logger.info(f'exceptions for pypianoroll in read the file {midi_file}')
         return None, None
 
     note_count = [np.count_nonzero(np.any(track.pianoroll, axis=1)) \
@@ -144,7 +146,7 @@ def remove_duplicate_tracks(features, replace=False):
 
 
         features.drop(indices[1:], inplace=True)
-        print(indices[1:])
+        logger.info(indices[1:])
 
     return features
 
@@ -224,17 +226,17 @@ def remove_file_duplicate_tracks(features, pm):
 
 
         features.drop(indices[1:], inplace=True)
-        # print(f'indices are {indices}')
+        # logger.info(f'indices are {indices}')
 
 
         for index in indices[1:]:
-            # print(f'index is {index}')
+            # logger.info(f'index is {index}')
             index_to_remove.append(index)
 
     indices = np.sort(np.array(index_to_remove))
 
     for index in indices[::-1]:
-        # print(f'index is {index}')
+        # logger.info(f'index is {index}')
         del pm.instruments[index]
 
     features.reset_index(inplace=True, drop='index')
@@ -367,11 +369,11 @@ def pitch(pianoroll_data):
         mode_pitch = scipy.stats.mode(pitch_array)
         mode_pitch = mode_pitch.mode[0]
 
-        # print(mode_pitch)
+        # logger.info(mode_pitch)
 
         std_pitch = np.std(pitch_array)
 
-        # print(std_pitch)
+        # logger.info(std_pitch)
 
         highest.append(highest_note)
         lowest.append(lowest_note)
@@ -408,7 +410,7 @@ def pitch(pianoroll_data):
     result = np.vstack((highest, lowest, modes, stds, highest_norm, lowest_norm, modes_norm, stds_norm))
     result = result.T
 
-    # print(result.shape)
+    # logger.info(result.shape)
     assert result.shape == (len(pianoroll_data.tracks), 8)
 
     return result
@@ -453,7 +455,7 @@ def pitch_intervals(pretty_midi_data):
 
     for instrument in pretty_midi_data.instruments:
         intervals = get_intervals(instrument.notes, -3)
-        #         print(f'intervals is {intervals}')
+        #         logger.info(f'intervals is {intervals}')
 
         if len(intervals) > 0:
 
@@ -543,7 +545,7 @@ def note_durations(pretty_midi_data):
         notes = instrument.notes
         durations = np.array([note.end - note.start for note in notes])
 
-        # print(f'durations is {durations}')
+        # logger.info(f'durations is {durations}')
 
         longest_duration.append(np.max(durations))
         shortest_duration.append(np.min(durations))
@@ -584,7 +586,7 @@ def note_durations(pretty_midi_data):
 
     result = result.T
 
-    # print(result.shape)
+    # logger.info(result.shape)
 
     assert result.shape == (len(pretty_midi_data.instruments), 8)
     return result
@@ -654,7 +656,7 @@ def note_durations(pretty_midi_data):
 
     result = result.T
 
-    # print(result.shape)
+    # logger.info(result.shape)
 
     assert result.shape == (len(pretty_midi_data.instruments), 8)
     return result
@@ -700,11 +702,11 @@ def all_features(midi_file):
         return None
 
     if len(pypiano.tracks) != len(pm.instruments):
-        print(f'pypiano track length is {len(pypiano.tracks)} does not equal \
+        logger.info(f'pypiano track length is {len(pypiano.tracks)} does not equal \
               to pretty_midi length {len(pm.instruments)} in file {midi_file}')
         return None
 
-    # print(f'the file is {midi_file}')
+    # logger.info(f'the file is {midi_file}')
 
     track_programs = np.array([i.program for i in pm.instruments])[:, np.newaxis]
     track_names = []
@@ -719,7 +721,7 @@ def all_features(midi_file):
                 track_names.append('')
 
     except Exception as e:
-        print(f'exceptions in find instrument name {midi_file}')
+        logger.info(f'exceptions in find instrument name {midi_file}')
         return None
 
     track_names = np.array(track_names)[:, np.newaxis]
@@ -744,7 +746,7 @@ def all_features(midi_file):
                               pitch_interval_features, note_duration_features
                               ))
 
-    # print(all_features.shape)
+    # logger.info(all_features.shape)
     assert all_features.shape == (len(pm.instruments), 34)
 
     return all_features
@@ -790,11 +792,11 @@ def cal_file_features(midi_file):
         return None,None
 
     if len(pypiano.tracks) != len(pm.instruments):
-        print(f'pypiano track length is {len(pypiano.tracks)} does not equal \
+        logger.info(f'pypiano track length is {len(pypiano.tracks)} does not equal \
               to pretty_midi length {len(pm.instruments)} in file {midi_file}')
         return None
 
-    # print(f'the file is {midi_file}')
+    # logger.info(f'the file is {midi_file}')
 
     track_programs = np.array([i.program for i in pm.instruments])[:, np.newaxis]
     track_names = []
@@ -809,7 +811,7 @@ def cal_file_features(midi_file):
                 track_names.append('')
 
     except Exception as e:
-        print(f'exceptions in find instrument name {midi_file}')
+        logger.info(f'exceptions in find instrument name {midi_file}')
         return None
 
     #     basename = os.path.basename(midi_file)
@@ -837,7 +839,7 @@ def cal_file_features(midi_file):
                               pitch_interval_features, note_duration_features
                               ))
 
-    # print(all_features.shape)
+    # logger.info(all_features.shape)
     assert all_features.shape == (len(pm.instruments), 34)
 
     return all_features, pm
@@ -897,8 +899,8 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
     original_names = []
 
     for file_name in all_names:
-        # print(f'file name is {file_name}')
-        print(f'the file is {file_name}')
+        # logger.info(f'file name is {file_name}')
+        logger.info(f'the file is {file_name}')
         try:
             features, pm = cal_file_features(file_name)
 
@@ -907,9 +909,9 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
             features = add_labels(features)
 
             remove_file_duplicate_tracks(features, pm)
-            # print(features.shape)
+            # logger.info(features.shape)
             features = predict_labels(features, melody_model, bass_model, chord_model)
-            # print(features.shape)
+            # logger.info(features.shape)
 
             progs = []
 
@@ -926,7 +928,7 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
             predicted_chord_tracks = np.count_nonzero(features.chord_predict == True)
 
             if features.shape[0] < 3:
-                print('track number is not greater than 3, skip this file')
+                logger.info('track number is not greater than 3, skip this file')
                 continue
 
             temp_index = []
@@ -940,9 +942,9 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                     temp_index.append(predicted_melody_indices[0])
             else:
                 ## pass this song
-                print('no melody track found, skip this file')
+                logger.info('no melody track found, skip this file')
                 continue
-            # print(temp_index)
+            # logger.info(temp_index)
 
             progs.append(features.loc[temp_index[0], 'trk_prog'])
 
@@ -956,11 +958,11 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                     temp_index.append(predicted_bass_indices[0])
             else:
                 ## pass this song
-                print('no bass, pass this song')
+                logger.info('no bass, pass this song')
                 continue
                 # temp_index.append(-1)
 
-            # print(temp_index)
+            # logger.info(temp_index)
 
             if temp_index[1] != -1:
                 progs.append(features.loc[temp_index[1], 'trk_prog'])
@@ -979,7 +981,7 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                         temp_index.append(features.index[chord_candicate[0]])
                 else:
                     temp_index.append(-2)
-            # print(temp_index)
+            # logger.info(temp_index)
 
             if temp_index[2] != -2:
                 progs.append(features.loc[temp_index[2], 'trk_prog'])
@@ -990,19 +992,19 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                 if index not in temp_index:
                     if features.loc[index, 'trk_prog'] not in progs:
                         temp_index.append(index)
-                        # print(temp_index)
+                        # logger.info(temp_index)
                         if len(temp_index) > 4:
                             break
 
             if np.sum(np.array(temp_index) >= 0) < 3:
-                print('result track number is not greater than 2, skip this file')
+                logger.info('result track number is not greater than 2, skip this file')
                 continue
             [int(index) for index in temp_index]
 
             all_file_index[os.path.basename(file_name)] = [int(index) for index in temp_index]
 
-            # print(temp_index)
-            # print(len(pm.instruments))
+            # logger.info(temp_index)
+            # logger.info(len(pm.instruments))
 
             pm_new = deepcopy(pm)
             pm_new.instruments = []
@@ -1012,8 +1014,8 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
 
             basename = os.path.basename(file_name)
             original_names.append(file_name)
-            # print(file_name)
-            # print(len(pm.instruments))
+            # logger.info(file_name)
+            # logger.info(len(pm.instruments))
             output_name = os.path.join(output_folder,basename)
             if not os.path.exists(output_folder):
                 os.mkdir(output_folder)
@@ -1043,6 +1045,33 @@ if __name__ == "__main__":
     melody_model = pickle.load(open(running_dir + '/melody_model','rb'))
     bass_model = pickle.load(open(running_dir+ '/bass_model','rb'))
     chord_model = pickle.load(open(running_dir+ '/chord_model','rb'))
+
+    if not os.path.exists(args.output_folder):
+        os.makedirs(args.output_folder,exist_ok=True)
+
+    logger = logging.getLogger(__name__)
+
+    logger.handlers = []
+
+    output_json_name = os.path.join(args.output_folder, "files_result.json")
+
+    if not os.path.exists(args.output_folder):
+        os.makedirs(args.output_folder, exist_ok=True)
+
+    logfile = args.output_folder + '/track_separate.log'
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO,
+                        datefmt='%Y-%m-%d %H:%M:%S', filename=logfile)
+
+    # set up logging to console
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    # set a format which is simpler for console use
+    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    console.setFormatter(formatter)
+    logger.addHandler(console)
+
+    coloredlogs.install(level='INFO', logger=logger, isatty=True)
 
     if len(args.file_name) > 0:
         file_name = [args.file_name]

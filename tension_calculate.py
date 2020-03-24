@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 import itertools
 import math
 import json
-
+import logging
+import coloredlogs
 
 import argparse
 
@@ -304,29 +305,29 @@ def key_search(ce, shift,key_given=False,is_minor=False):
     if shift in sharp_index:
         if key_given:
             result = f'major {pitch_index_to_sharp_names[shift]}'
-            # print(result)
+            # logger.info(result)
             return major_key_pos,result
         if diff_major < diff_minor:
             result = f'major {pitch_index_to_sharp_names[shift]}'
-            # print(result)
+            # logger.info(result)
             return major_key_pos,result
         else:
             result = f'minor {pitch_index_to_sharp_names[minor_shift]}'
-            # print(result)
+            # logger.info(result)
             return minor_key_pos,result
     else:
         if key_given:
             result = f'major {pitch_index_to_flat_names[shift]}'
-            # print(result)
+            # logger.info(result)
             return major_key_pos,result
 
         if diff_major < diff_minor:
             result = f'major {pitch_index_to_flat_names[shift]}'
-            # print(result)
+            # logger.info(result)
             return major_key_pos,result
         else:
             result = f'minor {pitch_index_to_flat_names[minor_shift]}'
-            # print(result)
+            # logger.info(result)
             return minor_key_pos,result
 
 
@@ -367,7 +368,7 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
 
         # pm = pretty_midi.PrettyMIDI(file_name)
         # pm = remove_drum_track(pm)
-        # print(file_name)
+        # logger.info(file_name)
 
         base_name = os.path.basename(file_name)
 
@@ -413,7 +414,7 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
                 change_key_name = 'Unknown'
 
 
-            # print(f'new key name is {change_key_name}')
+            # logger.info(f'new key name is {change_key_name}')
         else:
             change_key_name = ''
             diameters = diameter(chord, key_index, key_change_bar, key_index)
@@ -464,7 +465,7 @@ def cal_tension(file_name, pm, beats, output_folder, window_size=1, key_index=No
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
         exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
-        print(exception_str)
+        logger.info(exception_str)
 
 def get_scales():
     # get all scales for every root note
@@ -600,7 +601,7 @@ def detect_key_change(key_diff, pm):
             current = np.mean(key_diff[i:i+16])
             ratio = current/previous
             ratios.append(ratio)
-        #print(f'the position is {i}, and ratio is {ratio}')
+        #logger.info(f'the position is {i}, and ratio is {ratio}')
     ratios = np.array(ratios)
     start = int(ratios.shape[0] * 0.5)
     for i in range(start,ratios.shape[0], 2):
@@ -609,7 +610,7 @@ def detect_key_change(key_diff, pm):
             down_beats = pm.get_downbeats()
             beats = pm.get_beats()
             bar = np.where(beats[32 + i*2] < down_beats)[0][0]
-            # print(f'the key changed after bar {bar + 2}')
+            # logger.info(f'the key changed after bar {bar + 2}')
 
             return bar + 2, down_beats[bar+2]
     return -1,-1
@@ -656,7 +657,7 @@ def extract_notes(file_name,output_folder,window_size=4):
     try:
         pm = pretty_midi.PrettyMIDI(file_name)
         pm = remove_drum_track(pm)
-        # print(file_name)
+        # logger.info(file_name)
 
         base_name = os.path.basename(file_name)
         beats = pm.get_beats()
@@ -690,7 +691,7 @@ def extract_notes(file_name,output_folder,window_size=4):
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
         exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
-        print(exception_str)
+        logger.info(exception_str)
         return None
 
     return pm,chord_names,chord_note_merged,eighth_beats
@@ -749,7 +750,32 @@ def get_args(default='.'):
 
 if __name__== "__main__":
     args = get_args()
+
+    logger = logging.getLogger(__name__)
+
+    logger.handlers = []
+    
+    
     output_json_name = os.path.join(args.output_folder, "files_result.json")
+
+    if not os.path.exists(args.output_folder):
+        os.makedirs(args.output_folder,exist_ok=True)
+
+    logfile = args.output_folder + '/tension_calculate.log'
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO,
+                        datefmt='%Y-%m-%d %H:%M:%S', filename=logfile)
+
+    # set up logging to console
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    # set a format which is simpler for console use
+    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    console.setFormatter(formatter)
+    logger.addHandler(console)
+
+    coloredlogs.install(level='INFO', logger=logger, isatty=True)
+
     if os.path.exists(output_json_name):
         with open(output_json_name, 'r') as f:
             files_result = json.load(f)
@@ -767,7 +793,7 @@ if __name__== "__main__":
                     # base_name1 = os.path.basename(args.file_name)
                     if args.file_name != name:
                         continue
-                print(f'working on file {file_name}')
+                logger.info(f'working on file {file_name}')
 
                 pm, chord_names, chord_note, beats = extract_notes(file_name, args.output_folder)
 
@@ -799,7 +825,7 @@ if __name__== "__main__":
                     
                 except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
                     exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
-                    print(exception_str)
+                    logger.info(exception_str)
 
                 if key_name is not None:
                     files_result[base_name[:-4]] = []
@@ -807,13 +833,13 @@ if __name__== "__main__":
                     files_result[base_name[:-4]].append(int(key_change_bar))
                     files_result[base_name[:-4]].append(key_change_name)
 
-                    print(f'key name is {key_name}')
+                    logger.info(f'key name is {key_name}')
                     if key_change_bar != -1:
-                        print(f'key change bar is {key_change_bar}')
-                        print(f'new key name is {key_change_name}')
+                        logger.info(f'key change bar is {key_change_bar}')
+                        logger.info(f'new key name is {key_change_name}')
 
                 else:
-                    print(f'cannot find the key of song {file_name}, skip this file')
+                    logger.info(f'cannot find the key of song {file_name}, skip this file')
 
     with open(os.path.join(args.output_folder,'files_result.json'), 'w') as fp:
         json.dump(files_result, fp)
