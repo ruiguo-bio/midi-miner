@@ -35,7 +35,7 @@ def remove_drum_empty_track(midi_file):
         pretty_midi_data = pretty_midi.PrettyMIDI(midi_file)
 
     except Exception as e:
-        logger.info(f'exceptions in read the file {midi_file}')
+        logger.warning(f'exceptions in read the file {midi_file}')
         return None, None
 
     ### remove drum track
@@ -49,7 +49,7 @@ def remove_drum_empty_track(midi_file):
     try:
         pypiano_data.parse_pretty_midi(pretty_midi_data)
     except Exception as e:
-        logger.info(f'exceptions for pypianoroll in read the file {midi_file}')
+        logger.warning(f'exceptions for pypianoroll in parsing the file {midi_file}')
         return None, None
 
     note_count = [np.count_nonzero(np.any(track.pianoroll, axis=1)) \
@@ -66,6 +66,78 @@ def remove_drum_empty_track(midi_file):
 
     return pretty_midi_data, pypiano_data
 
+
+def remove_empty_track(midi_file):
+    '''
+
+
+
+    1. remove emtpy track,
+    also remove track with fewer than 10% notes of the track
+    with most notes
+
+    ********
+    Return: pretty_midi object, pypianoroll object
+    '''
+
+    try:
+        pretty_midi_data = pretty_midi.PrettyMIDI(midi_file)
+
+    except Exception as e:
+        logger.warning(f'exceptions in read the file {midi_file}')
+
+        return None, None
+
+
+
+    ### remove empty track
+    pypiano_data = pypianoroll.Multitrack()
+
+    # try:
+    #     pypiano_data.parse_pretty_midi(pretty_midi_data)
+    # except Exception as e:
+    #     logger.info(f'exceptions for pypianoroll in read the file {midi_file}')
+    #     return None, None
+
+    # note_count = [np.count_nonzero(np.any(track.pianoroll, axis=1)) \
+    #               for track in pypiano_data.tracks]
+    #
+    # empty_indices = note_count / np.max(note_count) < 0.1
+
+    note_count = np.array([len(instrument.notes) \
+                                for instrument in pretty_midi_data.instruments])
+                  #
+    if len(pretty_midi_data.instruments) > 3:
+        empty_indices = np.array(note_count / np.sort(note_count)[-2] < 0.1)
+    else:
+        empty_indices = np.array(note_count / np.max(note_count) < 0.1)
+
+    for i, instrument in enumerate(pretty_midi_data.instruments):
+        if instrument.program == 0 and instrument.is_drum is False:
+            empty_indices[i] = True
+        all_less_than_10 = True
+        for note in instrument.notes:
+            if note.pitch > 10:
+                all_less_than_10 = False
+        if all_less_than_10:
+            empty_indices[i] = True
+
+
+
+    # remove_indices = np.arange(len(pypiano_data.tracks))[empty_indices]
+    if np.sum(empty_indices) > 0:
+        for index in sorted(np.where(empty_indices)[0],reverse=True):
+
+            # del pypiano_data.tracks[index]
+            del pretty_midi_data.instruments[index]
+
+
+
+
+    pypiano_data.parse_pretty_midi(pretty_midi_data)
+
+
+    return pretty_midi_data, pypiano_data
 
 def remove_duplicate_tracks(features, replace=False):
     if not replace:
@@ -118,11 +190,13 @@ def remove_duplicate_tracks(features, replace=False):
     melody_track_name = ['sing', 'vocals', 'vocal', 'melody', 'melody:']
     bass_track_name = ['bass', 'bass:']
     chord_track_name = ['chord', 'chords', 'harmony']
+    drum_track_name = ['drum', 'drums']
 
     for indices in duplicates:
         melody_track = False
         bass_track = False
         chord_track = False
+        drum_track = False
         labels = features.loc[indices, 'trk_names']
         for label in labels:
             if label in melody_track_name:
@@ -134,6 +208,8 @@ def remove_duplicate_tracks(features, replace=False):
 
             elif label in chord_track_name:
                 chord_track = True
+            elif label in drum_track_name:
+                drum_track = True
             else:
                 pass
 
@@ -143,6 +219,8 @@ def remove_duplicate_tracks(features, replace=False):
             features.loc[indices, 'trk_names'] = 'bass'
         if chord_track:
             features.loc[indices, 'trk_names'] = 'chord'
+        if drum_track:
+            features.loc[indices, 'trk_names'] = 'drum'
 
 
         features.drop(indices[1:], inplace=True)
@@ -197,11 +275,13 @@ def remove_file_duplicate_tracks(features, pm):
     melody_track_name = ['sing', 'vocals', 'vocal', 'melody', 'melody:']
     bass_track_name = ['bass', 'bass:']
     chord_track_name = ['chord', 'chords', 'harmony']
+    drum_track_name = ['drum', 'drums']
 
     for indices in duplicates:
         melody_track = False
         bass_track = False
         chord_track = False
+        drum_track = False
         labels = features.loc[indices, 'trk_names']
         for label in labels:
             if label in melody_track_name:
@@ -214,6 +294,9 @@ def remove_file_duplicate_tracks(features, pm):
             elif label in chord_track_name:
                 chord_track = True
 
+            elif label in drum_track_name:
+                drum_track = True
+
             else:
                 pass
 
@@ -223,6 +306,9 @@ def remove_file_duplicate_tracks(features, pm):
             features.loc[indices, 'trk_names'] = 'bass'
         if chord_track:
             features.loc[indices, 'trk_names'] = 'chord'
+
+        if drum_track:
+            features.loc[indices, 'trk_names'] = 'drum'
 
 
         features.drop(indices[1:], inplace=True)
@@ -247,11 +333,8 @@ def walk(folder_name):
     files = []
     for p, d, f in os.walk(folder_name):
         for file in f:
-            base_name = os.path.basename(file)
-            base_name = os.path.splitext(base_name)[0]
-            if base_name.isupper():
-                continue
-            if file.endswith('.mid') or file.endswith('.MID'):
+            endname = file.split('.')[-1].lower()
+            if endname == 'mid' or endname == 'midi':
                 files.append(os.path.join(p,file))
     return files
 
@@ -696,14 +779,14 @@ def all_features(midi_file):
     '''
 
 
-    pm, pypiano = remove_drum_empty_track(midi_file)
+    pm, pypiano = remove_empty_track(midi_file)
 
     if pm is None:
         return None
 
     if len(pypiano.tracks) != len(pm.instruments):
         logger.info(f'pypiano track length is {len(pypiano.tracks)} does not equal \
-              to pretty_midi length {len(pm.instruments)} in file {midi_file}')
+              to pretty_midi length {len(pm.instruments)} in {midi_file}')
         return None
 
     # logger.info(f'the file is {midi_file}')
@@ -721,7 +804,8 @@ def all_features(midi_file):
                 track_names.append('')
 
     except Exception as e:
-        logger.info(f'exceptions in find instrument name {midi_file}')
+        logger.warning(f'exceptions in find instrument name {midi_file}', e.args[0])
+
         return None
 
     track_names = np.array(track_names)[:, np.newaxis]
@@ -786,15 +870,16 @@ def cal_file_features(midi_file):
     '''
 
 
-    pm, pypiano = remove_drum_empty_track(midi_file)
+    pm, pypiano = remove_empty_track(midi_file)
 
     if pm is None:
         return None,None
 
+
     if len(pypiano.tracks) != len(pm.instruments):
-        logger.info(f'pypiano track length is {len(pypiano.tracks)} does not equal \
-              to pretty_midi length {len(pm.instruments)} in file {midi_file}')
-        return None
+        logger.info(f'pypiano track num is {len(pypiano.tracks)} does not equal \
+              to pretty_midi num {len(pm.instruments)} in {midi_file}')
+        return None, None
 
     # logger.info(f'the file is {midi_file}')
 
@@ -811,7 +896,7 @@ def cal_file_features(midi_file):
                 track_names.append('')
 
     except Exception as e:
-        logger.info(f'exceptions in find instrument name {midi_file}')
+        logger.warning(e)
         return None
 
     #     basename = os.path.basename(midi_file)
@@ -848,9 +933,11 @@ def cal_file_features(midi_file):
 melody_track_name = ['sing','vocals','vocal','melody','melody:']
 bass_track_name = ['bass','bass:']
 chord_track_name = ['chord','chords','harmony']
+drum_track_name = ['drum','drums']
 check_melody = lambda x: x in melody_track_name
 check_bass = lambda x: x in bass_track_name
 check_chord = lambda x: x in chord_track_name
+check_drum = lambda x: x in drum_track_name
 
 columns=['trk_prog','trk_names','file_names','is_drum',
          'dur', 'num_notes', 'occup_rate', 'poly_rate',
@@ -875,27 +962,84 @@ def add_labels(features):
     return features
 
 
-def predict_labels(features, melody_model, bass_model, chord_model):
+def predict_labels(features, melody_model, bass_model, chord_model,drum_model):
     temp_features = features.copy()
     temp_features = temp_features.drop(temp_features.columns[:4], axis=1)
 
     predicted_melody = melody_model.predict(temp_features)
     predicted_bass = bass_model.predict(temp_features)
     predicted_chord = chord_model.predict(temp_features)
+    predicted_drum = drum_model.predict(temp_features)
+
+
+
+    for index,value in enumerate(predicted_melody):
+        if value:
+            if features.iloc[index]['poly_rate'] > 0.3:
+                predicted_melody[index] = False
+
+    for index,value in enumerate(predicted_bass):
+        if value:
+            if features.iloc[index]['poly_rate'] > 0.3:
+                predicted_bass[index] = False
+
+
+
+
+    if np.sum(predicted_melody) == 0:
+        melody_candidates = features[(features.mean_dur < 1) & (features.occup_rate > 0.6) & (features.poly_rate < 0.1)].index.values
+        if np.sum(predicted_bass) > 0:
+            bass_index = np.where(predicted_bass)[0][0]
+            where_to_delete = np.where(melody_candidates == bass_index)[0]
+            melody_candidates = np.delete(melody_candidates,where_to_delete)
+        if len(melody_candidates) > 1:
+            predicted_melody[np.argmin(features.iloc[melody_candidates].poly_rate)] = True
+            logger.info(f'use rules to find melody track')
+        if len(melody_candidates) == 1:
+            predicted_melody[melody_candidates] = True
+            logger.info(f'use rules to find melody track')
+
+
+
+    if np.sum(predicted_chord) == 0:
+        chord_candicate = np.intersect1d(np.where(features['mean_dur_nor'] > 0.8),
+                                         np.where(features['poly_rate'] > 0.9))
+        if len(chord_candicate) > 0:
+            logger.info(f'use rules to find chord track')
+
+            if len(chord_candicate) > 1:
+                predicted_chord[(np.argmax(features.loc[chord_candicate, 'dur']))] = True
+            else:
+                predicted_chord[(features.index[chord_candicate[0]])] = True
+
+    predicted_melody[predicted_drum] = False
+    predicted_bass[predicted_drum] = False
+    predicted_chord[predicted_drum] = False
+
+    predicted_melody[predicted_bass] = False
+
 
     features['is_melody'] = list(map(check_melody, features['trk_names']))
     features['is_bass'] = list(map(check_bass, features['trk_names']))
     features['is_chord'] = list(map(check_chord, features['trk_names']))
+    features['is_drum'] = list(map(check_drum, features['trk_names']))
+
+    predicted_melody[features['is_drum']] = False
+    predicted_bass[features['is_drum']] = False
+    predicted_chord[features['is_drum']] = False
+
 
     features['melody_predict'] = predicted_melody
     features['bass_predict'] = predicted_bass
     features['chord_predict'] = predicted_chord
+    features['drum_predict'] = predicted_drum
     return features
 
 
-def predict(all_names, output_folder, melody_model, bass_model, chord_model):
+def predict(all_names, output_folder, melody_model, bass_model, chord_model, drum_model):
 
     all_file_index = {}
+    all_file_prog = {}
     original_names = []
 
     for file_name in all_names:
@@ -910,7 +1054,7 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
 
             remove_file_duplicate_tracks(features, pm)
             # logger.info(features.shape)
-            features = predict_labels(features, melody_model, bass_model, chord_model)
+            features = predict_labels(features, melody_model, bass_model, chord_model,drum_model)
             # logger.info(features.shape)
 
             progs = []
@@ -921,29 +1065,41 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
 
             chord_tracks = np.count_nonzero(features.is_chord == True)
 
+            drum_tracks = np.count_nonzero(features.is_drum == True)
+
+
             predicted_melody_tracks = np.count_nonzero(features.melody_predict == True)
 
             predicted_bass_tracks = np.count_nonzero(features.bass_predict == True)
 
             predicted_chord_tracks = np.count_nonzero(features.chord_predict == True)
 
-            if features.shape[0] < 3:
-                logger.info('track number is not greater than 3, skip this file')
+            predicted_drum_tracks = np.count_nonzero(features.drum_predict == True)
+
+            if features.shape[0] < 2:
+                logger.info(f'track number is less than 2, skip {file_name}')
                 continue
 
             temp_index = []
+
+
             if melody_tracks > 0:
                 temp_index.append(features.index[np.where(features.is_melody == True)][0])
+
             elif predicted_melody_tracks > 0:
                 predicted_melody_indices = features.index[np.where(features.melody_predict == True)]
+
                 if len(predicted_melody_indices) > 1:
                     temp_index.append(np.argmax(features.loc[predicted_melody_indices, 'dur']))
                 else:
                     temp_index.append(predicted_melody_indices[0])
             else:
-                ## pass this song
-                logger.info('no melody track found, skip this file')
+                temp_index.append(-1)
+
+            if -1 in temp_index:
+                logger.info(f'no melody track found, skip {file_name}')
                 continue
+
             # logger.info(temp_index)
 
             progs.append(features.loc[temp_index[0], 'trk_prog'])
@@ -957,55 +1113,92 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                 else:
                     temp_index.append(predicted_bass_indices[0])
             else:
-                ## pass this song
-                logger.info('no bass, pass this song')
-                continue
-                # temp_index.append(-1)
+                logger.debug('no bass')
+                temp_index.append(-2)
+
+
+            if temp_index[1] != -2:
+                progs.append(features.loc[temp_index[1], 'trk_prog'])
+            else:
+                progs.append(-2)
 
             # logger.info(temp_index)
 
-            if temp_index[1] != -1:
-                progs.append(features.loc[temp_index[1], 'trk_prog'])
 
             if chord_tracks > 0:
                 temp_index.append(features.index[np.where(features.is_chord == True)][0])
             elif predicted_chord_tracks > 0:
-                temp_index.append(features.index[np.where(features.chord_predict == True)][0])
-            else:
-                chord_candicate = np.intersect1d(np.where(features['mean_dur_nor'] > 0.8),
-                                                 np.where(features['poly_rate'] > 0.9))
-                if len(chord_candicate) > 0:
-                    if len(chord_candicate) > 1:
-                        temp_index.append(np.argmax(features.loc[chord_candicate, 'dur']))
-                    else:
-                        temp_index.append(features.index[chord_candicate[0]])
+                predicted_chord_indices = features.index[np.where(features.chord_predict == True)]
+                if len(predicted_chord_indices) > 1:
+                    temp_index.append(np.argmax(features.loc[predicted_chord_indices, 'dur']))
                 else:
-                    temp_index.append(-2)
+                    temp_index.append(predicted_chord_indices[0])
+            else:
+                temp_index.append(-3)
+                logger.debug('no chord')
             # logger.info(temp_index)
-
-            if temp_index[2] != -2:
+            if temp_index[2] != -3:
                 progs.append(features.loc[temp_index[2], 'trk_prog'])
+            else:
+                progs.append(-3)
+
+            drum_exist = True
+            if drum_tracks > 0:
+                temp_index.append(features.index[np.where(features.is_drum == True)][0])
+            elif predicted_drum_tracks > 0:
+                predicted_drum_indices = features.index[np.where(features.drum_predict == True)]
+                if len(predicted_drum_indices) > 1:
+                    temp_index.append(np.argmax(features.loc[predicted_drum_indices, 'dur']))
+                else:
+                    temp_index.append(predicted_drum_indices[0])
+            else:
+                drum_exist = False
+
+                logger.debug('no drum')
+                temp_index.append(-5)
+
+
+            if -2 in temp_index:
+                insert_index = 2
+            else:
+                insert_index = 3
+
+
 
             dur_sort_indices = features.dur[features.dur > 0.5].iloc[
                 np.argsort(features.dur[features.dur > 0.5])].index.values
-            for index in dur_sort_indices[::-1]:
+
+            insert_times = 0
+            for index in dur_sort_indices[5::-1]:
                 if index not in temp_index:
                     if features.loc[index, 'trk_prog'] not in progs:
-                        temp_index.append(index)
+                        if features.loc[index, 'trk_prog'] == 0:
+                            continue
+                        temp_index.insert(insert_index+insert_times, index)
+
+                        insert_times += 1
+                        progs.insert(insert_index+insert_times, features.loc[index, 'trk_prog'])
+
                         # logger.info(temp_index)
-                        if len(temp_index) > 4:
+
+
+                        if np.sum(np.array(temp_index) >= 0) > 3 - int(drum_exist):
                             break
 
-            if np.sum(np.array(temp_index) >= 0) < 3:
-                logger.info('result track number is not greater than 2, skip this file')
-                continue
-            [int(index) for index in temp_index]
 
-            all_file_index[os.path.basename(file_name)] = [int(index) for index in temp_index]
+            if np.sum(np.array(temp_index) >= 0) - int(drum_exist) < 2:
+                logger.info(f'result track number is 1, skip this {file_name}')
+                continue
+
+            temp_index = [int(num) for num in temp_index]
+            progs = [int(num) for num in progs]
+            all_file_index[os.path.basename(file_name)] = temp_index
+            all_file_prog[os.path.basename(file_name)] = progs
 
             # logger.info(temp_index)
             # logger.info(len(pm.instruments))
-
+            if drum_exist:
+                pm.instruments[temp_index[-1]].is_drum = True
             pm_new = deepcopy(pm)
             pm_new.instruments = []
             for i in temp_index:
@@ -1021,10 +1214,12 @@ def predict(all_names, output_folder, melody_model, bass_model, chord_model):
                 os.mkdir(output_folder)
             pm_new.write(output_name)
         except Exception as e:
-            pass
+            logger.warning(e)
 
-    with open(os.path.join(output_folder,'result.json'), 'w') as fp:
+    with open(os.path.join(output_folder,'track_result.json'), 'w') as fp:
         json.dump(all_file_index, fp, ensure_ascii=False)
+    with open(os.path.join(output_folder,'program_result.json'), 'w') as fp:
+        json.dump(all_file_prog, fp, ensure_ascii=False)
 
 
     return
@@ -1045,6 +1240,7 @@ if __name__ == "__main__":
     melody_model = pickle.load(open(running_dir + '/melody_model','rb'))
     bass_model = pickle.load(open(running_dir+ '/bass_model','rb'))
     chord_model = pickle.load(open(running_dir+ '/chord_model','rb'))
+    drum_model = pickle.load(open(running_dir + '/drum_model', 'rb'))
 
     if not os.path.exists(args.output_folder):
         os.makedirs(args.output_folder,exist_ok=True)
@@ -1075,7 +1271,7 @@ if __name__ == "__main__":
 
     if len(args.file_name) > 0:
         file_name = [args.file_name]
-        predict(file_name, args.output_folder, melody_model, bass_model, chord_model)
+        predict(file_name, args.output_folder, melody_model, bass_model, chord_model,drum_model)
     else:
         all_names = walk(args.input_folder)
-        predict(all_names, args.output_folder, melody_model, bass_model, chord_model)
+        predict(all_names, args.output_folder, melody_model, bass_model, chord_model,drum_model)
