@@ -8,6 +8,8 @@ This will run tension_calculation.py on all the file in the _input_folder_ and o
 _output_folder_. -k True means it tries to find key change. Default is not, which is not detecting key change.
 It will try to find one key change in the song which is usually in pop songs, but not the classical songs.
 
+The vertical step in the spiral array theory can be changed by -v parameter, which should be between sqrt(2/15) and sqrt(0.2). The current implementation set it to 0.4.
+
 
 
 files_result.json records the file key and potential key changing time and bar position. The output of three tension measures are in pickle format. 
