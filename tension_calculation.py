@@ -864,7 +864,7 @@ if __name__== "__main__":
                     file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down_beat_time,down_beat_indices, args.output_folder, args.window_size,[args.key_name])
 
 
-            total_tension, diameters,centroid_diff, key_name, key_change_time, key_change_name,key_change_bar, new_output_foler = result
+            total_tension, diameters,centroid_diff, key_name, key_change_time, key_change_bar,key_change_name, new_output_foler = result
 
             if np.count_nonzero(total_tension) == 0:
                 logger.info(f"tensile 0 skip {file_name}")
