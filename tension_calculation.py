@@ -15,16 +15,9 @@ import json
 import logging
 import coloredlogs
 
-import music21.analysis
-
 import argparse
 from collections import Counter
 
-
-key_weights = [music21.analysis.discrete.BellmanBudge(),
-           music21.analysis.discrete.KrumhanslSchmuckler(),
-           music21.analysis.discrete.TemperleyKostkaPayne(),
-            music21.analysis.discrete.KrumhanslKessler()]
 
 octave = 12
 
@@ -508,14 +501,6 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
         exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
         logger.info(exception_str)
 
-def get_key_name(file_name):
-    stream = music21.converter.parse(file_name)
-    result = []
-    for weight in key_weights:
-        result.append(weight.getSolution(stream).name)
-    count = Counter(result)
-    result = count.most_common(1)
-    return list(set([element[0] for element in result] ))
 
 def get_key_index_change(pm,start_time,sixteenth_time):
 
@@ -525,8 +510,7 @@ def get_key_index_change(pm,start_time,sixteenth_time):
             if note.start > start_time:
                 instrument.notes = instrument.notes[i:]
                 break
-    # new_pm.write('./temp.mid')
-    # key_name = get_key_name('./temp.mid')
+
     piano_roll = get_piano_roll(new_pm, sixteenth_time)
     key_name = all_key_names
 
