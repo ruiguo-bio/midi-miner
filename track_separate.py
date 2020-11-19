@@ -1019,7 +1019,16 @@ def predict_labels(features, melody_model, bass_model, chord_model,drum_model):
     predicted_chord[predicted_drum] = False
 
     predicted_melody[predicted_bass] = False
+    predicted_melody[predicted_chord] = False
 
+    predicted_bass[predicted_chord] = False
+    predicted_bass[predicted_melody] = False
+
+
+
+    predicted_drum[predicted_melody] = False
+    predicted_drum[predicted_bass] = False
+    predicted_drum[predicted_chord] = False
 
     features['is_melody'] = list(map(check_melody, features['trk_names']))
     features['is_bass'] = list(map(check_bass, features['trk_names']))
@@ -1093,7 +1102,7 @@ def predict(all_names, input_folder, output_folder,required_tracks,
                 predicted_melody_indices = features.index[np.where(features.melody_predict == True)]
 
                 if len(predicted_melody_indices) > 1:
-                    temp_index.append(np.argmax(features.loc[predicted_melody_indices, 'dur']))
+                    temp_index.append(predicted_melody_indices[np.argmax(features.loc[predicted_melody_indices, 'dur'].values)])
                 else:
                     temp_index.append(predicted_melody_indices[0])
             else:
@@ -1118,7 +1127,7 @@ def predict(all_names, input_folder, output_folder,required_tracks,
             elif predicted_bass_tracks > 0:
                 predicted_bass_indices = features.index[np.where(features.bass_predict == True)]
                 if len(predicted_bass_indices) > 1:
-                    temp_index.append(np.argmax(features.loc[predicted_bass_indices, 'dur']))
+                    temp_index.append(predicted_bass_indices[np.argmax(features.loc[predicted_bass_indices, 'dur'].values)])
                 else:
                     temp_index.append(predicted_bass_indices[0])
             else:
@@ -1143,7 +1152,7 @@ def predict(all_names, input_folder, output_folder,required_tracks,
             elif predicted_chord_tracks > 0:
                 predicted_chord_indices = features.index[np.where(features.chord_predict == True)]
                 if len(predicted_chord_indices) > 1:
-                    temp_index.append(np.argmax(features.loc[predicted_chord_indices, 'dur']))
+                    temp_index.append(predicted_chord_indices[np.argmax(features.loc[predicted_chord_indices, 'dur'].values)])
                 else:
                     temp_index.append(predicted_chord_indices[0])
             else:
@@ -1166,7 +1175,8 @@ def predict(all_names, input_folder, output_folder,required_tracks,
             elif predicted_drum_tracks > 0:
                 predicted_drum_indices = features.index[np.where(features.drum_predict == True)]
                 if len(predicted_drum_indices) > 1:
-                    temp_index.append(np.argmax(features.loc[predicted_drum_indices, 'dur']))
+
+                    temp_index.append(predicted_drum_indices[np.argmax(features.loc[predicted_drum_indices, 'dur'].values)])
                 else:
                     temp_index.append(predicted_drum_indices[0])
             else:
@@ -1242,6 +1252,7 @@ def predict(all_names, input_folder, output_folder,required_tracks,
 
 
             # logger.info(temp_index)
+            # logger.info(progs)
             # logger.info(len(pm.instruments))
             if drum_exist:
                 pm.instruments[temp_index[-1]].is_drum = True
