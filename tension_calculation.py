@@ -16,7 +16,6 @@ import logging
 import coloredlogs
 
 import argparse
-from collections import Counter
 
 
 octave = 12
@@ -452,7 +451,7 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
         diameters = merge_tension(diameters, beat_indices, down_beat_indices, window_size)
         #
 
-        centroid_diff = np.diff(centroids, axis=0)
+        centroid_diff = np.diff(merged_centroids, axis=0)
         #
         np.nan_to_num(centroid_diff, copy=False)
 
@@ -485,7 +484,7 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
                                                 base_name.replace(name_split[-1],'centroid_diff')),
                                    'wb'))
 
-        pickle.dump(window_time, open(os.path.join(new_output_folder,
+        pickle.dump(window_time[:len(total_tension)], open(os.path.join(new_output_folder,
                                                      base_name.replace(name_split[-1], 'time')),
                                         'wb'))
         # draw_tension(total_tension,os.path.join(new_output_folder,
@@ -642,7 +641,7 @@ def remove_drum_track(pm):
 def get_beat_time(pm, beat_division=4):
     beats = pm.get_beats()
 
-
+    beats = np.unique(beats,axis=0)
 
     divided_beats = []
     for i in range(len(beats) - 1):
@@ -655,6 +654,8 @@ def get_beat_time(pm, beat_division=4):
         beat_indices.append(np.argwhere(divided_beats == beat)[0][0])
 
     down_beats = pm.get_downbeats()
+
+    down_beats = np.unique(down_beats, axis=0)
     down_beat_indices = []
     for down_beat in down_beats:
         down_beat_indices.append(np.argwhere(divided_beats == down_beat)[0][0])
@@ -678,7 +679,10 @@ def extract_notes(file_name,track_num):
         #     return None
 
         if track_num != 0:
-           pm.instruments = pm.instruments[:track_num]
+            if len(pm.instruments) < track_num:
+                logger.warning(f'the file {file_name} has {len(pm.instruments)} tracks,'
+                               f'less than the required track num {track_num}. Use all the tracks')
+            pm.instruments = pm.instruments[:track_num]
 
 
         sixteenth_time, beat_time,down_beat_time,beat_indices,down_beat_indices = get_beat_time(pm, beat_division=4)
@@ -772,6 +776,58 @@ def key_to_key_pos(key_indices,key_pos):
     return diffs
 
 
+#
+# def process_file(file_name,result_dict):
+#     base_name = os.path.basename(file_name)
+#
+#     # logger.info(f'working on {file_name}')
+#     result = extract_notes(file_name, args.track_num)
+#
+#     if result is None:
+#         return
+#     else:
+#         pm, piano_roll, beat_time, down_beat_time, beat_indices, down_beat_indices = result
+#
+#     try:
+#         if args.key_name == '':
+#             # key_name = get_key_name(file_name)
+#             key_name = all_key_names
+#
+#             result = cal_tension(
+#                 file_name, piano_roll, beat_time, beat_indices, down_beat_time, down_beat_indices, args.output_folder,
+#                 args.window_size, key_name)
+#
+#         else:
+#             result = cal_tension(
+#                 file_name, piano_roll, beat_time, beat_indices, down_beat_time, down_beat_indices, args.output_folder,
+#                 args.window_size, [args.key_name])
+#
+#         total_tension, diameters, centroid_diff, key_name, key_change_time, key_change_bar, key_change_name, new_output_foler = result
+#
+#         if np.count_nonzero(total_tension) == 0:
+#             logger.info(f"tensile 0 skip {file_name}")
+#
+#             return
+#
+#         if np.count_nonzero(diameters) == 0:
+#             logger.info(f"diameters 0, skip {file_name}")
+#
+#             return
+#
+#     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
+#         exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
+#         logger.info(exception_str)
+#
+#     if key_name is not None:
+#         result_dict[new_output_foler + '/' + base_name] = []
+#         result_dict[new_output_foler + '/' + base_name].append(key_name)
+#         result_dict[new_output_foler + '/' + base_name].append(int(key_change_time))
+#         result_dict[new_output_foler + '/' + base_name].append(int(key_change_bar))
+#         result_dict[new_output_foler + '/' + base_name].append(key_change_name)
+#
+#     else:
+#         logger.info(f'cannot find the key of song {file_name}, skip this file')
+
 
 if __name__== "__main__":
     args = get_args()
@@ -827,7 +883,7 @@ if __name__== "__main__":
         base_name = os.path.basename(file_name)
 
 
-        logger.info(f'working on {file_name}')
+        # logger.info(f'working on {file_name}')
         result = extract_notes(file_name,args.track_num)
 
         if result is None:
