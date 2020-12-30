@@ -407,10 +407,9 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
                     changed_key_name = ''
                     key_change_beat = -1
                     change_time = -1
-
+                    key_change_bar = -1
 
             else:
-
                 changed_note_shift = -1
                 changed_key_name = ''
                 key_change_beat = -1
@@ -421,6 +420,7 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
             changed_key_name = ''
             key_change_beat = -1
             change_time = -1
+            key_change_bar = -1
 
         centroids = cal_centroid(piano_roll, note_shift,key_change_beat,changed_note_shift)
 
@@ -699,10 +699,10 @@ def extract_notes(file_name,track_num):
 def walk(folder_name):
     files = []
     for p, d, f in os.walk(folder_name):
-        for file in f:
-            endname = file.split('.')[-1].lower()
+        for file_name in f:
+            endname = file_name.split('.')[-1].lower()
             if endname == 'mid' or endname == 'midi':
-                files.append(os.path.join(p,file))
+                files.append(os.path.join(p,file_name))
     return files
 
 
