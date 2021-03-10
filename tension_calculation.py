@@ -474,18 +474,18 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
 
         name_split = base_name.split('.')
         pickle.dump(total_tension, open(os.path.join(new_output_folder,
-                                                     base_name.replace(name_split[-1],'tensile')),
+                                                     name_split[0] + '.tensile'),
                                         'wb'))
 
         pickle.dump(diameters, open(os.path.join(new_output_folder,
-                                                base_name.replace(name_split[-1],'diameter')),
+                                                name_split[0] + '.diameter'),
                                    'wb'))
         pickle.dump(centroid_diff, open(os.path.join(new_output_folder,
-                                                base_name.replace(name_split[-1],'centroid_diff')),
+                                                name_split[0] + '.centroid_diff'),
                                    'wb'))
 
         pickle.dump(window_time[:len(total_tension)], open(os.path.join(new_output_folder,
-                                                     base_name.replace(name_split[-1], 'time')),
+                                                     name_split[0] + '.time'),
                                         'wb'))
         # draw_tension(total_tension,os.path.join(new_output_folder,
         #                                              base_name[:-4]+'_tensile_strain.png'))
@@ -648,19 +648,25 @@ def get_beat_time(pm, beat_division=4):
         for j in range(beat_division):
             divided_beats.append((beats[i + 1] - beats[i]) / beat_division * j + beats[i])
     divided_beats.append(beats[-1])
+    divided_beats = np.unique(divided_beats, axis=0)
 
     beat_indices = []
     for beat in beats:
         beat_indices.append(np.argwhere(divided_beats == beat)[0][0])
 
     down_beats = pm.get_downbeats()
+    if divided_beats[-1] > down_beats[-1]:
+        down_beats = np.append(down_beats, down_beats[-1] - down_beats[-2] + down_beats[-1])
 
     down_beats = np.unique(down_beats, axis=0)
+
+
     down_beat_indices = []
     for down_beat in down_beats:
-        down_beat_indices.append(np.argwhere(divided_beats == down_beat)[0][0])
 
-    return np.array(divided_beats),np.array(beats),np.array(down_beats),beat_indices,down_beat_indices
+        down_beat_indices.append(np.argmin(np.abs(down_beat - divided_beats)))
+
+    return np.array(divided_beats), np.array(beats), np.array(down_beats), beat_indices, down_beat_indices
 
 
 
