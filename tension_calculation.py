@@ -6,10 +6,12 @@ import pretty_midi
 import sys
 import copy
 import numpy as np
+from collections import Counter
 # import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
+import music21
 
 import json
 import logging
@@ -17,6 +19,18 @@ import coloredlogs
 
 import argparse
 
+major_enharmonics = {'C#':'D-',
+               'D#':'E-',
+               'F#':'G-',
+               'G#':'A-',
+               'A#':'B-'}
+
+
+minor_enharmonics = {'D-':'C#',
+               'D#':'E-',
+               'G-':'F#',
+               'A-':'G#',
+               'A#':'B-'}
 
 octave = 12
 
@@ -247,7 +261,7 @@ def cal_key(piano_roll, key_names,end_ratio=0.5):
     key_indices = []
     key_shifts = []
     for name in key_names:
-        key = name.split()[0]
+        key = name.split()[0].upper()
         mode = name.split()[1]
 
 
@@ -427,11 +441,12 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
         merged_centroids = merge_tension(centroids,beat_indices, down_beat_indices, window_size=window_size)
         merged_centroids = np.array(merged_centroids)
 
+        silent = np.where(np.linalg.norm(merged_centroids, axis=-1) < 0.3)
+        merged_centroids[silent] = 0
         if window_size == -1:
             window_time = down_beat_time
         else:
             window_time = beat_time[::window_size]
-        silent = np.where(np.linalg.norm(merged_centroids, axis=-1) == 0)
 
         if key_change_beat != -1:
             key_diff = np.zeros(merged_centroids.shape[0])
@@ -450,6 +465,8 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
         diameters = cal_diameter(piano_roll, note_shift,key_change_beat,changed_note_shift)
         diameters = merge_tension(diameters, beat_indices, down_beat_indices, window_size)
         #
+        diameters[silent] = 0
+
 
         centroid_diff = np.diff(merged_centroids, axis=0)
         #
@@ -890,6 +907,7 @@ if __name__== "__main__":
 
 
         # logger.info(f'working on {file_name}')
+        # file_name = '/Users/ruiguo/Downloads/36067affdbefb38a779e510e6edabe6b.mid'
         result = extract_notes(file_name,args.track_num)
 
         if result is None:
@@ -911,6 +929,78 @@ if __name__== "__main__":
 
 
             total_tension, diameters,centroid_diff, key_name, key_change_time, key_change_bar,key_change_name, new_output_foler = result
+
+            if args.key_name == '':
+                result_list = []
+                result_list.append(key_name)
+
+
+                s = music21.converter.parse(file_name)
+                # s = music21.converter.parse(files[i][:-12] + '_remi.mid')
+
+                p = music21.analysis.discrete.KrumhanslSchmuckler()
+                p1 = music21.analysis.discrete.TemperleyKostkaPayne()
+                p2 = music21.analysis.discrete.BellmanBudge()
+                key1 = p.getSolution(s).name
+                key2 = p1.getSolution(s).name
+                key3 = p2.getSolution(s).name
+
+                key1_name = key1.split()[0].upper()
+                key1_mode = key1.split()[1]
+
+                key2_name = key2.split()[0].upper()
+                key2_mode = key2.split()[1]
+
+                key3_name = key3.split()[0].upper()
+                key3_mode = key3.split()[1]
+
+                if key1_mode == 'major':
+                    if key1_name in major_enharmonics:
+                        result_list.append(major_enharmonics[key1_name] + ' ' + key1_mode)
+                    else:
+                        result_list.append(key1_name + ' ' + key1_mode)
+                else:
+                    if key1_name in minor_enharmonics:
+                        result_list.append(minor_enharmonics[key1_name] + ' ' + key1_mode)
+                    else:
+                        result_list.append(key1_name + ' ' + key1_mode)
+
+                if key2_mode == 'major':
+                    if key2_name in major_enharmonics:
+                        result_list.append(major_enharmonics[key2_name] + ' ' + key2_mode)
+                    else:
+                        result_list.append(key2_name + ' ' + key2_mode)
+                else:
+                    if key2_name in minor_enharmonics:
+                        result_list.append(minor_enharmonics[key2_name] + ' ' + key2_mode)
+                    else:
+                        result_list.append(key2_name + ' ' + key2_mode)
+
+                if key3_mode == 'major':
+                    if key3_name in major_enharmonics:
+                        result_list.append(major_enharmonics[key3_name] + ' ' + key3_mode)
+                    else:
+                        result_list.append(key3_name + ' ' + key3_mode)
+                else:
+                    if key3_name in minor_enharmonics:
+                        result_list.append(minor_enharmonics[key3_name] + ' ' + key3_mode)
+                    else:
+                        result_list.append(key3_name + ' ' + key3_mode)
+
+                count_result = Counter(result_list)
+                result_key = sorted(count_result, key=count_result.get, reverse=True)[0]
+
+
+                result = cal_tension(
+                file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down_beat_time,down_beat_indices, args.output_folder, args.window_size,[result_key])
+
+                total_tension, diameters, centroid_diff, key_name, key_change_time, key_change_bar, key_change_name, new_output_foler = result
+
+
+
+
+            print(f'file name {file_name}, calculated key name {key_name}')
+            print(f'if the calculated key name is not correct, you can set the key name by -n parameter')
 
             if np.count_nonzero(total_tension) == 0:
                 logger.info(f"tensile 0 skip {file_name}")
