@@ -1,5 +1,20 @@
 # Midi Miner
 Python MIDI track classifier and tonal tension calculation based on spiral array theory
+
+## installation
+
+### pip
+ensure your python version > 3.8:
+
+pip install -r requirements.txt
+
+### conda
+
+conda env create -f environment.yml
+
+conda activate midi-miner
+
+
 ## Usage
 Please refer to the [example notebook](example.ipynb) file for detailed examples.
 
