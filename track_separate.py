@@ -499,9 +499,9 @@ def pitch_intervals(pm):
 
 
 
-    result = np.vstack((different_interval, largest_interval, smallest_interval, \
-                        mode_interval, std_interval, different_interval_norm, \
-                        largest_interval_norm, smallest_interval_norm, \
+    result = np.vstack((different_interval, largest_interval, smallest_interval,
+                        mode_interval, std_interval, different_interval_norm,
+                        largest_interval_norm, smallest_interval_norm,
                         mode_interval_norm, std_interval_norm))
 
     result = result.T
@@ -518,7 +518,7 @@ def note_durations(pm):
 
     Parameters
         ----------
-        data : pretty-midi data
+        pm : pretty-midi data
 
          Returns
         -------
@@ -570,8 +570,8 @@ def note_durations(pm):
     else:
         std_duration_norm = (std_duration - np.min(std_duration)) / (np.max(std_duration) - np.min(std_duration))
 
-    result = np.vstack((longest_duration, shortest_duration, mean_duration, \
-                        std_duration, longest_duration_norm, shortest_duration_norm, \
+    result = np.vstack((longest_duration, shortest_duration, mean_duration,
+                        std_duration, longest_duration_norm, shortest_duration_norm,
                         mean_duration_norm, std_duration_norm))
 
     result = result.T
@@ -687,8 +687,8 @@ def cal_file_features(midi_file):
 
     rel_durations = relative_duration(pm)
     if rel_durations is None:
-        logger.warining(f'no notes in file {midi_file}')
-        return None,None
+        logger.warning(f'no notes in file {midi_file}')
+        return None, None
     number_notes = number_of_notes(pm)
     occup_rate,poly_rate = occupation_polyphony_rate(pm)
     pitch_features = pitch(pm)
@@ -696,9 +696,9 @@ def cal_file_features(midi_file):
     note_duration_features = note_durations(pm)
 
 
-    all_features = np.hstack((track_programs, track_names, file_names, is_drum, \
-                              rel_durations, number_notes, occup_rate, \
-                              poly_rate, pitch_features, \
+    all_features = np.hstack((track_programs, track_names, file_names, is_drum,
+                              rel_durations, number_notes, occup_rate,
+                              poly_rate, pitch_features,
                               pitch_interval_features, note_duration_features
                               ))
 
