@@ -1,9 +1,7 @@
+scikit-learn==1.0.2
 coloredlogs>=14.0
 matplotlib>=3.2.1
 mido>=1.2.9
-numpy>=1.21
 pandas>=1.0.3
 pretty-midi>=0.2.8
-scikit-learn==1.0.2
-scipy>=1.4.1
 music21>=7.1.0
