@@ -4,7 +4,7 @@ Python MIDI track classifier and tonal tension calculation based on spiral array
 ## installation
 
 ### pip
-ensure your python version > 3.7:
+ensure your python version > 3.8:
 
 pip install -r requirements.txt
 
