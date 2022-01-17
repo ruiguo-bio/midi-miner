@@ -1,0 +1,14 @@
+name: midi-miner
+dependencies:
+- python>=3.7
+- matplotlib>=3.2.1
+- numpy>=1.21
+- pandas>=1.0.3
+- scikit-learn>=1.0.2
+- scipy>=1.4.1
+- coloredlogs>=14.0
+- pip
+- pip:
+  - mido>=1.2.9
+  - pretty-midi>=0.2.8
+  - music21>=7.1.0

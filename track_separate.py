@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import pretty_midi
-import pypianoroll
 
 import numpy as np
 import pickle
@@ -19,67 +18,15 @@ import coloredlogs
 
 
 
-
-def remove_drum_empty_track(midi_file):
-    '''
-
-
-    1. read pretty midi data, remove the drum track
-    2. remove emtpy track,
-    also remove track with fewer than 10% notes of the track
-    with most notes
-
-    ********
-    Return: pretty_midi object, pypianoroll object
-    '''
-
-    try:
-        pretty_midi_data = pretty_midi.PrettyMIDI(midi_file)
-
-    except Exception as e:
-        logger.warning(f'exceptions {e} when read the file {midi_file}')
-        return None, None
-
-    ### remove drum track
-    for instrument in pretty_midi_data.instruments:
-        if instrument.is_drum:
-            pretty_midi_data.instruments.remove(instrument)
-
-    ### remove empty track
-    pypiano_data = pypianoroll.Multitrack()
-
-    try:
-        pypiano_data.parse_pretty_midi(pretty_midi_data)
-    except Exception as e:
-        logger.warning(f'exceptions for pypianoroll in parsing the file {midi_file}')
-        return None, None
-
-    note_count = [np.count_nonzero(np.any(track.pianoroll, axis=1)) \
-                  for track in pypiano_data.tracks]
-
-    empty_indices = note_count / np.max(note_count) < 0.1
-
-    remove_indices = np.arange(len(pypiano_data.tracks))[empty_indices]
-
-    for index in sorted(remove_indices, reverse=True):
-
-        del pypiano_data.tracks[index]
-        del pretty_midi_data.instruments[index]
-
-    return pretty_midi_data, pypiano_data
-
-
 def remove_empty_track(midi_file):
     '''
-
-
 
     1. remove emtpy track,
     also remove track with fewer than 10% notes of the track
     with most notes
 
     ********
-    Return: pretty_midi object, pypianoroll object
+    Return: pretty_midi object
     '''
 
     try:
@@ -89,22 +36,6 @@ def remove_empty_track(midi_file):
         logger.warning(f'exceptions {e} when read the file {midi_file}')
 
         return None, None
-
-
-
-    ### remove empty track
-    pypiano_data = pypianoroll.Multitrack()
-
-    # try:
-    #     pypiano_data.parse_pretty_midi(pretty_midi_data)
-    # except Exception as e:
-    #     logger.info(f'exceptions for pypianoroll in read the file {midi_file}')
-    #     return None, None
-
-    # note_count = [np.count_nonzero(np.any(track.pianoroll, axis=1)) \
-    #               for track in pypiano_data.tracks]
-    #
-    # empty_indices = note_count / np.max(note_count) < 0.1
 
     note_count = np.array([len(instrument.notes) \
                                 for instrument in pretty_midi_data.instruments])
@@ -115,8 +46,6 @@ def remove_empty_track(midi_file):
         empty_indices = np.array(note_count / np.max(note_count) < 0.1)
 
     for i, instrument in enumerate(pretty_midi_data.instruments):
-        if instrument.program == 0 and instrument.is_drum is False:
-            empty_indices[i] = True
         all_less_than_10 = True
         for note in instrument.notes:
             if note.pitch > 10:
@@ -125,21 +54,13 @@ def remove_empty_track(midi_file):
             empty_indices[i] = True
 
 
-
-    # remove_indices = np.arange(len(pypiano_data.tracks))[empty_indices]
     if np.sum(empty_indices) > 0:
         for index in sorted(np.where(empty_indices)[0],reverse=True):
 
-            # del pypiano_data.tracks[index]
             del pretty_midi_data.instruments[index]
 
 
-
-
-    pypiano_data.parse_pretty_midi(pretty_midi_data)
-
-
-    return pretty_midi_data, pypiano_data
+    return pretty_midi_data
 
 def remove_duplicate_tracks(features, replace=False):
     if not replace:
@@ -341,85 +262,72 @@ def walk(folder_name):
     return files
 
 
-def relative_duration(pianoroll_data):
-    '''
-
-    read pianoroll_data data
-
-    '''
-
-    note_count = [np.count_nonzero(np.any(track.pianoroll, axis=1)) \
-                  for track in pianoroll_data.tracks]
-
-    relative_durations = note_count / np.max(note_count)
-
-    relative_durations = np.array(relative_durations)
+def relative_duration(pm):
+    notes = np.array([len(pm.instruments[i].notes) for i in range(len(pm.instruments))])
+    if np.max(notes) == 0:
+        return None
+    relative_durations = notes / np.max(notes)
 
     relative_durations = relative_durations[:, np.newaxis]
 
-    assert relative_durations.shape == (len(pianoroll_data.tracks), 1)
+    assert relative_durations.shape == (len(pm.instruments), 1)
 
-    return np.array(relative_durations)
+    return relative_durations
 
 
-def number_of_notes(pretty_midi_data):
+def number_of_notes(pm):
     '''
     read pretty-midi data
     '''
     number_of_notes = []
-    for instrument in pretty_midi_data.instruments:
+    for instrument in pm.instruments:
         number_of_notes.append(len(instrument.notes))
 
     number_of_notes = np.array(number_of_notes, dtype='uint16')
 
     number_of_notes = number_of_notes[:, np.newaxis]
 
-    assert number_of_notes.shape == (len(pretty_midi_data.instruments), 1)
+    assert number_of_notes.shape == (len(pm.instruments), 1)
 
     return number_of_notes
 
 
-def occupation_rate(pianoroll_data):
+def occupation_polyphony_rate(pm):
+    occupation_rate = []
+    polyphony_rate = []
+
+    for instrument in pm.instruments:
+        piano_roll = get_piano_roll(instrument)
+        if piano_roll.shape[1] == 0:
+            occupation_rate.append(0)
+        else:
+            occupation_rate.append(np.count_nonzero(np.any(piano_roll, 0)) / piano_roll.shape[1])
+        if np.count_nonzero(np.any(piano_roll, 0)) == 0:
+            polyphony_rate.append(0)
+        else:
+            polyphony_rate.append(
+                np.count_nonzero(np.count_nonzero(piano_roll, 0) > 1) / np.count_nonzero(np.any(piano_roll, 0)))
+
+    occupation_rate = np.array(occupation_rate)
+    zero_idx = np.where(occupation_rate < 0.01)[0]
+    if len(zero_idx) > 0:
+        occupation_rate[zero_idx] = 0
+
+    occupation_rate = occupation_rate[:, np.newaxis]
+
+
+    polyphony_rate = np.array(polyphony_rate)
+    zero_idx = np.where(polyphony_rate < 0.01)[0]
+    if len(zero_idx) > 0:
+        polyphony_rate[zero_idx] = 0
+
+    polyphony_rate = polyphony_rate[:, np.newaxis]
+
+    return occupation_rate, polyphony_rate
+
+def pitch(pm):
     '''
-    read pypianoroll data
-    '''
-
-    occup_rates = []
-    for track in pianoroll_data.tracks:
-        piano_roll = track.pianoroll
-        occup_rates.append(np.count_nonzero(np.any(piano_roll, 1)) / piano_roll.shape[0])
-
-    occup_rates = np.array(occup_rates)
-    occup_rates = occup_rates[:, np.newaxis]
-
-    assert occup_rates.shape == (len(pianoroll_data.tracks), 1)
-    return occup_rates
-
-
-def polyphony_rate(pianoroll_data):
-    '''
-    use pianoroll data
-
-    '''
-
-    rates = []
-    for track in pianoroll_data.tracks:
-        piano_roll = track.pianoroll
-        number_poly_note = np.count_nonzero(np.count_nonzero(piano_roll, 1) > 1)
-
-        rate = number_poly_note / np.count_nonzero(np.any(piano_roll, 1))
-        rates.append(rate)
-
-    rates = np.array(rates)
-    rates = rates[:, np.newaxis]
-
-    assert rates.shape == (len(pianoroll_data.tracks), 1)
-    return rates
-
-
-def pitch(pianoroll_data):
-    '''
-    read pypianoroll data
+    read pretty midi data
 
     Returns
         -------
@@ -435,8 +343,6 @@ def pitch(pianoroll_data):
     modes = []
     stds = []
 
-    # pitches = np.array([note.pitch] for note in instrument.notes)
-
     def array_creation_by_count(counts):
         result = []
         for i, count in enumerate(counts):
@@ -446,10 +352,10 @@ def pitch(pianoroll_data):
         result = np.array([item for sublist in result for item in sublist])
         return result
 
-    for track in pianoroll_data.tracks:
-        highest_note = np.where(np.any(track.pianoroll, 0))[0][-1]
-        lowest_note = np.where(np.any(track.pianoroll, 0))[0][0]
-        pitch_array = array_creation_by_count(np.count_nonzero(track.pianoroll, 0))
+    for track in pm.instruments:
+        highest_note = np.where(np.any(get_piano_roll(track), 1))[0][-1]
+        lowest_note = np.where(np.any(get_piano_roll(track), 1))[0][0]
+        pitch_array = array_creation_by_count(np.count_nonzero(get_piano_roll(track), 1))
 
         mode_pitch = scipy.stats.mode(pitch_array)
         mode_pitch = mode_pitch.mode[0]
@@ -496,12 +402,12 @@ def pitch(pianoroll_data):
     result = result.T
 
     # logger.info(result.shape)
-    assert result.shape == (len(pianoroll_data.tracks), 8)
+    assert result.shape == (len(pm.instruments), 8)
 
     return result
 
 
-def pitch_intervals(pretty_midi_data):
+def pitch_intervals(pm):
     '''
     use pretty-midi data here
 
@@ -538,7 +444,7 @@ def pitch_intervals(pretty_midi_data):
                     intervals.append(abs(note2.pitch - note1.pitch))
         return np.array(intervals)
 
-    for instrument in pretty_midi_data.instruments:
+    for instrument in pm.instruments:
         intervals = get_intervals(instrument.notes, -3)
         #         logger.info(f'intervals is {intervals}')
 
@@ -600,12 +506,13 @@ def pitch_intervals(pretty_midi_data):
 
     result = result.T
 
-    assert (result.shape == (len(pretty_midi_data.instruments), 10))
+    assert (result.shape == (len(pm.instruments), 10))
 
     return result
 
 
-def note_durations(pretty_midi_data):
+
+def note_durations(pm):
     '''
     use pretty-midi data here
 
@@ -626,79 +533,7 @@ def note_durations(pretty_midi_data):
     mean_duration = []
     std_duration = []
 
-    for instrument in pretty_midi_data.instruments:
-        notes = instrument.notes
-        durations = np.array([note.end - note.start for note in notes])
-
-        # logger.info(f'durations is {durations}')
-
-        longest_duration.append(np.max(durations))
-        shortest_duration.append(np.min(durations))
-        mean_duration.append(np.mean(durations))
-        std_duration.append(np.std(durations))
-
-
-    longest_duration = np.array(longest_duration)
-    shortest_duration = np.array(shortest_duration)
-    mean_duration = np.array(mean_duration)
-    std_duration = np.array(std_duration)
-
-    if np.max(longest_duration) - np.min(longest_duration) == 0:
-        longest_duration_norm = np.ones_like(longest_duration)
-    else:
-        longest_duration_norm = (longest_duration - np.min(longest_duration)) / (
-                    np.max(longest_duration) - np.min(longest_duration))
-
-    if np.max(shortest_duration) - np.min(shortest_duration) == 0:
-        shortest_duration_norm = np.zeros_like(shortest_duration)
-    else:
-        shortest_duration_norm = (shortest_duration - np.min(shortest_duration)) / (
-                    np.max(shortest_duration) - np.min(shortest_duration))
-
-    if np.max(mean_duration) - np.min(mean_duration) == 0:
-        mean_duration_norm = np.zeros_like(mean_duration)
-    else:
-        mean_duration_norm = (mean_duration - np.min(mean_duration)) / (np.max(mean_duration) - np.min(mean_duration))
-
-    if np.max(std_duration) - np.min(std_duration) == 0:
-        std_duration_norm = np.zeros_like(std_duration)
-    else:
-        std_duration_norm = (std_duration - np.min(std_duration)) / (np.max(std_duration) - np.min(std_duration))
-
-    result = np.vstack((longest_duration, shortest_duration, mean_duration, \
-                        std_duration, longest_duration_norm, shortest_duration_norm, \
-                        mean_duration_norm, std_duration_norm))
-
-    result = result.T
-
-    # logger.info(result.shape)
-
-    assert result.shape == (len(pretty_midi_data.instruments), 8)
-    return result
-
-
-def note_durations(pretty_midi_data):
-    '''
-    use pretty-midi data here
-
-    Parameters
-        ----------
-        data : pretty-midi data
-
-         Returns
-        -------
-        a numpy array in the shape of (number of tracks, 4)
-
-        the 4 columns are longest, shortest, mean, std of note durations
-        and the norm value across different tracks for those values
-    '''
-
-    longest_duration = []
-    shortest_duration = []
-    mean_duration = []
-    std_duration = []
-
-    for instrument in pretty_midi_data.instruments:
+    for instrument in pm.instruments:
         notes = instrument.notes
         durations = np.array([note.end - note.start for note in notes])
 
@@ -743,99 +578,44 @@ def note_durations(pretty_midi_data):
 
     # logger.info(result.shape)
 
-    assert result.shape == (len(pretty_midi_data.instruments), 8)
+    assert result.shape == (len(pm.instruments), 8)
     return result
 
 
-def all_features(midi_file):
-    '''
-    compute 34 features from midi data. Each track of each song have 30 features
+def get_piano_roll(track,fs=100):
+    """Compute a piano roll matrix of this instrument.
 
-    1 set of feature:
-    duration, number of notes, occupation rate, polyphony rate,
-
-    2 set of feature:
-    Highest pitch, lowest pitch, pitch mode, pitch std,
-    Highest pitch norm, lowest pitch norm, pitch mode norm, pitch std norm
-
-    3 set of feature
-
-    number of interval, largest interval,
-    smallest interval, interval mode,
-    number of interval norm, largest interval norm,
-    smallest interval norm, interval mode norm
-
-    4 set of feature
-
-    longest note duration, shortest note duration,
-     mean note duration, note duration std,
-     longest note duration norm, shortest note duration norm,
-     mean note duration norm, note duration std norm
-
-    for all the normed feature,  it is the normalised features
-    across different tracks within a midi file
-
-    5 set of feature:
-    track_programs,track_names,file_names,is_drum
-
-    '''
+    Parameters
+    ----------
+    fs : int
+        Sampling frequency of the columns, i.e. each column is spaced apart
+        by ``1./fs`` seconds.
 
 
-    pm, pypiano = remove_empty_track(midi_file)
+    Returns
+    -------
+    piano_roll : np.ndarray, shape=(128,times.shape[0])
+        Piano roll of this instrument.
 
-    if pm is None:
-        return None
+    """
+    # If there are no notes, return an empty matrix
+    if track.notes == []:
+        return np.array([[]]*128)
+    # Get the end time of the last event
+    end_time = track.get_end_time()
+    # Extend end time if one was provided
 
-    if len(pypiano.tracks) != len(pm.instruments):
-        logger.info(f'pypiano track length is {len(pypiano.tracks)} does not equal \
-              to pretty_midi length {len(pm.instruments)} in {midi_file}')
-        return None
+    # Allocate a matrix of zeros - we will add in as we go
+    piano_roll = np.zeros((128, int(fs*end_time)))
 
-    # logger.info(f'the file is {midi_file}')
+    # Add up piano roll matrix, note-by-note
+    for note in track.notes:
+        # Should interpolate
+        piano_roll[note.pitch,
+                   int(note.start*fs):int(note.end*fs)] += note.velocity
 
-    track_programs = np.array([i.program for i in pm.instruments])[:, np.newaxis]
-    track_names = []
+    return piano_roll
 
-    try:
-        for instrument in pm.instruments:
-            if len(instrument.name) > 1:
-                track_names.append(instrument.name.rsplit()[0].lower())
-            #             if instrument.name.strip() is not '':
-            #                 track_names.append(instrument.name.rsplit()[0].lower())
-            else:
-                track_names.append('')
-
-    except Exception as e:
-        logger.warning(f'exceptions in find instrument name {midi_file}', e.args[0])
-
-        return None
-
-    track_names = np.array(track_names)[:, np.newaxis]
-    file_names = np.array([midi_file] * len(pm.instruments))[:, np.newaxis]
-    is_drum = np.array([i.is_drum for i in pm.instruments])[:, np.newaxis]
-
-    rel_durations = relative_duration(pypiano)
-    number_notes = number_of_notes(pm)
-    occup_rate = occupation_rate(pypiano)
-    poly_rate = polyphony_rate(pypiano)
-
-    pitch_features = pitch(pypiano)
-
-    pitch_interval_features = pitch_intervals(pm)
-
-    note_duration_features = note_durations(pm)
-
-
-    all_features = np.hstack((track_programs, track_names, file_names, is_drum, \
-                              rel_durations, number_notes, occup_rate, \
-                              poly_rate, pitch_features, \
-                              pitch_interval_features, note_duration_features
-                              ))
-
-    # logger.info(all_features.shape)
-    assert all_features.shape == (len(pm.instruments), 34)
-
-    return all_features
 
 
 def cal_file_features(midi_file):
@@ -872,18 +652,15 @@ def cal_file_features(midi_file):
     '''
 
 
-    pm, pypiano = remove_empty_track(midi_file)
+    pm = remove_empty_track(midi_file)
 
-    if pm is None:
+    if pm is None or len(pm.instruments) == 0:
         return None,None
 
+    for track in pm.instruments:
+        if np.any(get_piano_roll(track)) == False:
+            return None,None
 
-    if len(pypiano.tracks) != len(pm.instruments):
-        logger.info(f'pypiano track num is {len(pypiano.tracks)} does not equal \
-              to pretty_midi num {len(pm.instruments)} in {midi_file}')
-        return None, None
-
-    # logger.info(f'the file is {midi_file}')
 
     track_programs = np.array([i.program for i in pm.instruments])[:, np.newaxis]
     track_names = []
@@ -899,7 +676,7 @@ def cal_file_features(midi_file):
 
     except Exception as e:
         logger.warning(e)
-        return None
+        return None,None
 
     #     basename = os.path.basename(midi_file)
     #     pm.write('/Users/ruiguo/Downloads/2000midi/new/' + basename)
@@ -908,15 +685,14 @@ def cal_file_features(midi_file):
     file_names = np.array([midi_file] * len(pm.instruments))[:, np.newaxis]
     is_drum = np.array([i.is_drum for i in pm.instruments])[:, np.newaxis]
 
-    rel_durations = relative_duration(pypiano)
+    rel_durations = relative_duration(pm)
+    if rel_durations is None:
+        logger.warining(f'no notes in file {midi_file}')
+        return None,None
     number_notes = number_of_notes(pm)
-    occup_rate = occupation_rate(pypiano)
-    poly_rate = polyphony_rate(pypiano)
-
-    pitch_features = pitch(pypiano)
-
+    occup_rate,poly_rate = occupation_polyphony_rate(pm)
+    pitch_features = pitch(pm)
     pitch_interval_features = pitch_intervals(pm)
-
     note_duration_features = note_durations(pm)
 
 
