@@ -1039,14 +1039,8 @@ def predict(all_names, input_folder, output_folder,required_tracks,
                 if i >= 0:
                     pm_new.instruments.append(deepcopy(pm.instruments[i]))
 
-
-            if input_folder[-1] != '/':
-                input_folder += '/'
-            name_with_sub_folder = file_name.replace(input_folder,"")
-            # original_names.append(file_name)
-            # logger.info(file_name)
-            # logger.info(len(pm.instruments))
-            output_name = os.path.join(output_folder,name_with_sub_folder)
+            base_name = os.path.basename(file_name)
+            output_name = os.path.join(output_folder,base_name)
             new_output_folder = os.path.dirname(output_name)
 
             if not os.path.exists(new_output_folder):
