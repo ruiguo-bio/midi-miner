@@ -6,18 +6,28 @@ import logging
 import os
 import pickle
 import sys
+from argparse import Namespace
 from collections import Counter
 from copy import deepcopy
+from dataclasses import dataclass
 from functools import reduce
+from gettext import install
+from typing import Dict, List, Tuple
 
 import coloredlogs
 import numpy as np
 import pandas as pd
 import pretty_midi
 import scipy.stats
+from numpy import ndarray
+from pandas import DataFrame
+from pretty_midi import Instrument, Note, PrettyMIDI
+from sklearn.ensemble._forest import RandomForestClassifier
+
+FilePath = str
 
 
-def remove_empty_track(midi_file):
+def remove_empty_track(midi_file: FilePath) -> PrettyMIDI:
     '''
 
     1. remove emtpy track,
@@ -59,7 +69,7 @@ def remove_empty_track(midi_file):
     return pretty_midi_data
 
 
-def remove_duplicate_tracks(features, replace=False):
+def remove_duplicate_tracks(features: DataFrame, replace=False) -> ndarray:
     if not replace:
         features = features.copy()
 
@@ -154,7 +164,7 @@ def remove_duplicate_tracks(features, replace=False):
     return features
 
 
-def remove_file_duplicate_tracks(features, pm):
+def remove_file_duplicate_tracks(features: DataFrame, pm: PrettyMIDI) -> None:
     duplicates = []
 
     index_to_remove = []
@@ -254,7 +264,7 @@ def remove_file_duplicate_tracks(features, pm):
     return
 
 
-def walk(folder_name):
+def walk(folder_name: str) -> List[FilePath]:
     files = []
     for p, d, f in os.walk(folder_name):
         for file in f:
@@ -264,7 +274,7 @@ def walk(folder_name):
     return files
 
 
-def relative_duration(pm):
+def relative_duration(pm: PrettyMIDI) -> ndarray:
     notes = np.array([len(pm.instruments[i].notes)
                      for i in range(len(pm.instruments))])
     if np.max(notes) == 0:
@@ -278,7 +288,7 @@ def relative_duration(pm):
     return relative_durations
 
 
-def number_of_notes(pm):
+def number_of_notes(pm: PrettyMIDI) -> int:
     '''
     read pretty-midi data
     '''
@@ -295,7 +305,7 @@ def number_of_notes(pm):
     return number_of_notes
 
 
-def occupation_polyphony_rate(pm):
+def occupation_polyphony_rate(pm: PrettyMIDI) -> Tuple[ndarray, ndarray]:
     occupation_rate = []
     polyphony_rate = []
 
@@ -329,7 +339,7 @@ def occupation_polyphony_rate(pm):
     return occupation_rate, polyphony_rate
 
 
-def pitch(pm):
+def pitch(pm: PrettyMIDI) -> ndarray:
     '''
     read pretty midi data
 
@@ -414,7 +424,7 @@ def pitch(pm):
     return result
 
 
-def pitch_intervals(pm):
+def pitch_intervals(pm: PrettyMIDI) -> ndarray:
     '''
     use pretty-midi data here
 
@@ -434,7 +444,7 @@ def pitch_intervals(pm):
     mode_interval = []
     std_interval = []
 
-    def get_intervals(notes, threshold=-1):
+    def get_intervals(notes: List[Note], threshold=-1) -> ndarray:
         '''
 
         threshold is the second for the space between two consecutive notes
@@ -517,7 +527,7 @@ def pitch_intervals(pm):
     return result
 
 
-def note_durations(pm):
+def note_durations(pm: PrettyMIDI) -> ndarray:
     '''
     use pretty-midi data here
 
@@ -588,7 +598,7 @@ def note_durations(pm):
     return result
 
 
-def get_piano_roll(track, fs=100):
+def get_piano_roll(track: Instrument, fs=100) -> ndarray:
     """Compute a piano roll matrix of this instrument.
 
     Parameters
@@ -600,7 +610,7 @@ def get_piano_roll(track, fs=100):
 
     Returns
     -------
-    piano_roll : np.ndarray, shape=(128,times.shape[0])
+    piano_roll : ndarray, shape=(128,times.shape[0])
         Piano roll of this instrument.
 
     """
@@ -623,7 +633,7 @@ def get_piano_roll(track, fs=100):
     return piano_roll
 
 
-def cal_file_features(midi_file):
+def cal_file_features(midi_file: FilePath) -> Tuple[ndarray, PrettyMIDI]:
     '''
     compute 34 features from midi data. Each track of each song have 30 features
 
@@ -715,6 +725,8 @@ melody_track_name = ['sing', 'vocals', 'vocal', 'melody', 'melody:']
 bass_track_name = ['bass', 'bass:']
 chord_track_name = ['chord', 'chords', 'harmony']
 drum_track_name = ['drum', 'drums']
+
+
 def check_melody(x): return x in melody_track_name
 def check_bass(x): return x in bass_track_name
 def check_chord(x): return x in chord_track_name
@@ -733,8 +745,8 @@ columns = ['trk_prog', 'trk_names', 'file_names', 'is_drum',
 boolean_dict = {'True': True, 'False': False}
 
 
-def add_labels(features):
-    features = pd.DataFrame(features, columns=columns)
+def add_labels(features: ndarray) -> DataFrame:
+    features = DataFrame(features, columns=columns)
 
     for name in columns[4:]:
         features[name] = pd.to_numeric(features[name])
@@ -745,7 +757,11 @@ def add_labels(features):
     return features
 
 
-def predict_labels(features, melody_model, bass_model, chord_model, drum_model):
+def predict_labels(features: DataFrame,
+                   melody_model: RandomForestClassifier,
+                   bass_model: RandomForestClassifier,
+                   chord_model: RandomForestClassifier,
+                   drum_model: RandomForestClassifier) -> DataFrame:
     temp_features = features.copy()
     temp_features = temp_features.drop(temp_features.columns[:4], axis=1)
 
@@ -821,17 +837,21 @@ def predict_labels(features, melody_model, bass_model, chord_model, drum_model):
     return features
 
 
-def predict(all_names, input_folder, output_folder, required_tracks,
-            melody_model, bass_model, chord_model, drum_model):
+def predict(all_names: List[FilePath],
+            input_folder: str,
+            output_folder: str,
+            required_tracks: List[str],
+            melody_model: RandomForestClassifier,
+            bass_model: RandomForestClassifier,
+            chord_model: RandomForestClassifier,
+            drum_model: RandomForestClassifier):
 
     all_file_prog = {}
 
     for file_name in all_names:
-        # logger.info(f'file name is {file_name}')
         logger.debug(f'the file is {file_name}')
 
         try:
-
             features, pm = cal_file_features(file_name)
 
             if pm is None:
@@ -1055,7 +1075,7 @@ def predict(all_names, input_folder, output_folder, required_tracks,
     return all_file_prog
 
 
-def get_args(default='.'):
+def get_args(default='.') -> Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_folder', default=default, type=str,
                         help="MIDI file input folder")
@@ -1074,10 +1094,14 @@ def get_args(default='.'):
 if __name__ == "__main__":
     args = get_args()
     running_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-    melody_model = pickle.load(open(running_dir + '/melody_model', 'rb'))
-    bass_model = pickle.load(open(running_dir + '/bass_model', 'rb'))
-    chord_model = pickle.load(open(running_dir + '/chord_model', 'rb'))
-    drum_model = pickle.load(open(running_dir + '/drum_model', 'rb'))
+    melody_model: RandomForestClassifier = pickle.load(
+        open(running_dir + '/melody_model', 'rb'))
+    bass_model: RandomForestClassifier = pickle.load(
+        open(running_dir + '/bass_model', 'rb'))
+    chord_model: RandomForestClassifier = pickle.load(
+        open(running_dir + '/chord_model', 'rb'))
+    drum_model: RandomForestClassifier = pickle.load(
+        open(running_dir + '/drum_model', 'rb'))
 
     if not os.path.exists(args.output_folder):
         os.makedirs(args.output_folder, exist_ok=True)
