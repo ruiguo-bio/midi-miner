@@ -1,4 +1,5 @@
 import argparse
+from ast import arg
 import copy
 import itertools
 import json
@@ -7,6 +8,7 @@ import math
 import os
 import sys
 from collections import Counter
+from typing import List, Tuple, Union
 
 import _pickle as pickle
 import coloredlogs
@@ -16,6 +18,10 @@ import matplotlib.pyplot as plt
 import music21
 import numpy as np
 import pretty_midi
+from numpy import ndarray
+from pretty_midi import PrettyMIDI
+
+PianoRoll = ndarray
 
 major_enharmonics = {'C#': 'D-',
                      'D#': 'E-',
@@ -74,7 +80,10 @@ verticalStep = 0.4
 radius = 1.0
 
 
-def cal_diameter(piano_roll, key_index, key_change_beat=-1, changed_key_index=-1):
+def cal_diameter(piano_roll: PianoRoll,
+                 key_index: int,
+                 key_change_beat=-1,
+                 changed_key_index=-1) -> List[int]:
 
     diameters = []
 
@@ -97,7 +106,7 @@ def cal_diameter(piano_roll, key_index, key_change_beat=-1, changed_key_index=-1
     return diameters
 
 
-def largest_distance(pitches):
+def largest_distance(pitches: List[int]) -> int:
     if len(pitches) < 2:
         return 0
     diameter = 0
@@ -110,7 +119,7 @@ def largest_distance(pitches):
     return diameter
 
 
-def piano_roll_to_ce(piano_roll, shift):
+def piano_roll_to_ce(piano_roll: PianoRoll, shift: int) -> ndarray:
 
     pitch_index = []
     for i in range(0, piano_roll.shape[1]):
@@ -129,7 +138,7 @@ def piano_roll_to_ce(piano_roll, shift):
     return ce_pos
 
 
-def notes_to_ce(notes, shift):
+def notes_to_ce(notes: List[int], shift: int) -> ndarray:
     indices = []
 
     for index, j in enumerate(notes):
@@ -152,7 +161,7 @@ def notes_to_ce(notes, shift):
     return total
 
 
-def pitch_index_to_position(pitch_index):
+def pitch_index_to_position(pitch_index: int) -> ndarray:
 
     c = pitch_index - (4 * (pitch_index // 4))
 
@@ -171,7 +180,7 @@ def pitch_index_to_position(pitch_index):
     return np.array(pos)
 
 
-def ce_sum(indices, start=None, end=None):
+def ce_sum(indices: List[int], start=None, end=None) -> ndarray:
     if not start:
         start = 0
     if not end:
@@ -187,7 +196,7 @@ def ce_sum(indices, start=None, end=None):
     return total/count
 
 
-def major_triad_position(root_index):
+def major_triad_position(root_index: int) -> ndarray:
     root_pos = pitch_index_to_position(root_index)
 
     fifth_index = root_index + 1
@@ -201,7 +210,7 @@ def major_triad_position(root_index):
     return centre_pos
 
 
-def minor_triad_position(root_index):
+def minor_triad_position(root_index: int) -> ndarray:
     root_pos = pitch_index_to_position(root_index)
 
     fifth_index = root_index + 1
@@ -216,7 +225,7 @@ def minor_triad_position(root_index):
     return centre_pos
 
 
-def major_key_position(key_index):
+def major_key_position(key_index: int) -> ndarray:
     root_triad_pos = major_triad_position(key_index)
     fifth_index = key_index + 1
 
@@ -231,7 +240,7 @@ def major_key_position(key_index):
     return key_pos
 
 
-def minor_key_position(key_index):
+def minor_key_position(key_index: int) -> ndarray:
 
     root_triad_pos = minor_triad_position(key_index)
     fifth_index = key_index + 1
@@ -251,7 +260,9 @@ def minor_key_position(key_index):
     return key_pos
 
 
-def cal_key(piano_roll, key_names, end_ratio=0.5):
+def cal_key(piano_roll: PianoRoll,
+            key_names: str,
+            end_ratio=0.5) -> Tuple[str, int, int]:
     # use the song to the place of end_ratio to find the key
     # for classical it should be less than 0.2
     end = int(piano_roll.shape[1] * end_ratio)
@@ -320,14 +331,14 @@ def cal_key(piano_roll, key_names, end_ratio=0.5):
     return key_name, key_pos, key_shift_for_ce
 
 
-def pianoroll_to_pitch(pianoroll):
+def pianoroll_to_pitch(pianoroll: PianoRoll) -> ndarray:
     pitch_roll = np.zeros((12, pianoroll.shape[1]))
     for i in range(0, pianoroll.shape[0]-12+1, 12):
         pitch_roll = np.add(pitch_roll, pianoroll[i:i+octave])
     return np.transpose(pitch_roll)
 
 
-def note_to_index(pianoroll):
+def note_to_index(pianoroll: PianoRoll) -> ndarray:
     note_ind = np.zeros((128, pianoroll.shape[1]))
     for i in range(0, pianoroll.shape[1]):
         step = []
@@ -339,7 +350,10 @@ def note_to_index(pianoroll):
     return np.transpose(note_ind)
 
 
-def merge_tension(metric, beat_indices, down_beat_indices, window_size=-1):
+def merge_tension(metric: List[float],
+                  beat_indices: List[int],
+                  down_beat_indices: List[int],
+                  window_size=-1) -> ndarray:
 
     # every bar window
     if window_size == -1:
@@ -360,7 +374,7 @@ def merge_tension(metric, beat_indices, down_beat_indices, window_size=-1):
     return np.array(new_metric)
 
 
-def moving_average(tension, window=4):
+def moving_average(tension: ndarray, window=4) -> ndarray:
 
     # size moving window, the output size is the same
     outputs = []
@@ -372,7 +386,16 @@ def moving_average(tension, window=4):
     return np.array(outputs)
 
 
-def cal_tension(file_name, piano_roll, sixteenth_time, beat_time, beat_indices, down_beat_time, down_beat_indices, output_folder, window_size=1, key_name=''):
+def cal_tension(file_name: str,
+                piano_roll: PianoRoll,
+                sixteenth_time: ndarray,
+                beat_time: ndarray,
+                beat_indices: List[int],
+                down_beat_time: ndarray,
+                down_beat_indices: List[int],
+                output_folder: str,
+                window_size=1,
+                key_name=''):
     try:
 
         base_name = os.path.basename(file_name)
@@ -524,8 +547,9 @@ def cal_tension(file_name, piano_roll, sixteenth_time, beat_time, beat_indices, 
         logger.info(exception_str)
 
 
-def get_key_index_change(pm, start_time, sixteenth_time):
-
+def get_key_index_change(pm: PianoRoll,
+                         start_time: float,
+                         sixteenth_time: ndarray):
     new_pm = copy.deepcopy(pm)
     for instrument in new_pm.instruments:
         for i, note in enumerate(instrument.notes):
@@ -541,8 +565,7 @@ def get_key_index_change(pm, start_time, sixteenth_time):
     return key_name, key_pos, note_shift
 
 
-def note_pitch(melody_track):
-
+def note_pitch(melody_track: ndarray) -> List[float]:
     pitch_sum = []
     for i in range(0, melody_track.shape[1]):
         indices = []
@@ -554,17 +577,18 @@ def note_pitch(melody_track):
     return pitch_sum
 
 
-def get_piano_roll(pm, beat_times):
+def get_piano_roll(pm: PrettyMIDI, beat_times: ndarray) -> PianoRoll:
     piano_roll = pm.get_piano_roll(times=beat_times)
     np.nan_to_num(piano_roll, copy=False)
     piano_roll = piano_roll > 0
     piano_roll = piano_roll.astype(int)
-
     return piano_roll
 
 
-def cal_centroid(piano_roll, key_index, key_change_beat=-1, changed_key_index=-1):
-
+def cal_centroid(piano_roll: PianoRoll,
+                 key_index: int,
+                 key_change_beat=-1,
+                 changed_key_index=-1):
     centroids = []
     for time_step in range(0, piano_roll.shape[1]):
 
@@ -580,8 +604,9 @@ def cal_centroid(piano_roll, key_index, key_change_beat=-1, changed_key_index=-1
     return centroids
 
 
-def detect_key_change(key_diff, diameter, start_ratio=0.5):
-
+def detect_key_change(key_diff: ndarray,
+                      diameter: ndarray,
+                      start_ratio=0.5) -> int:
     # 8 bar window
     key_diff_ratios = []
     diameter_ratios = []
@@ -649,7 +674,7 @@ def detect_key_change(key_diff, diameter, start_ratio=0.5):
 #     plt.close('all')
 
 
-def remove_drum_track(pm):
+def remove_drum_track(pm: PrettyMIDI) -> PrettyMIDI:
 
     for instrument in pm.instruments:
         if instrument.is_drum:
@@ -657,7 +682,9 @@ def remove_drum_track(pm):
     return pm
 
 
-def get_beat_time(pm, beat_division=4):
+def get_beat_time(pm: PrettyMIDI,
+                  beat_division=4
+                  ) -> Tuple[ndarray, ndarray, ndarray, List[int], List[int]]:
     beats = pm.get_beats()
 
     beats = np.unique(beats, axis=0)
@@ -689,7 +716,9 @@ def get_beat_time(pm, beat_division=4):
     return np.array(divided_beats), np.array(beats), np.array(down_beats), beat_indices, down_beat_indices
 
 
-def extract_notes(file_name, track_num):
+def extract_notes(file_name: str,
+                  track_num: int
+                  ) -> Tuple[PrettyMIDI, PianoRoll, ndarray, ndarray, ndarray, List[int], List[int]]:
     try:
         pm = pretty_midi.PrettyMIDI(file_name)
         pm = remove_drum_track(pm)
@@ -720,10 +749,10 @@ def extract_notes(file_name, track_num):
         logger.info(exception_str)
         return None
 
-    return [pm, piano_roll, sixteenth_time, beat_time, down_beat_time, beat_indices, down_beat_indices]
+    return (pm, piano_roll, sixteenth_time, beat_time, down_beat_time, beat_indices, down_beat_indices)
 
 
-def walk(folder_name):
+def walk(folder_name: str) -> List[str]:
     files = []
     for p, d, f in os.walk(folder_name):
         for file_name in f:
@@ -733,7 +762,7 @@ def walk(folder_name):
     return files
 
 
-def get_args(default='.'):
+def get_args(default='.') -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_folder', default=default, type=str,
                         help="MIDI file input folder")
@@ -765,7 +794,7 @@ def get_args(default='.'):
     return parser.parse_args()
 
 
-def note_to_key_pos(note_indices, key_pos):
+def note_to_key_pos(note_indices: List[int], key_pos: int) -> ndarray:
     note_positions = []
     for note_index in note_indices:
         note_positions.append(pitch_index_to_position(
@@ -774,7 +803,7 @@ def note_to_key_pos(note_indices, key_pos):
     return diffs
 
 
-def note_to_note_pos(note_indices, note_pos):
+def note_to_note_pos(note_indices: List[int], note_pos: int) -> ndarray:
     note_positions = []
     for note_index in note_indices:
         note_positions.append(pitch_index_to_position(
@@ -783,7 +812,7 @@ def note_to_note_pos(note_indices, note_pos):
     return diffs
 
 
-def chord_to_key_pos(chord_indices, key_pos):
+def chord_to_key_pos(chord_indices: List[int], key_pos: int) -> ndarray:
     chord_positions = []
     for chord_index in chord_indices:
         chord_positions.append(major_triad_position(
@@ -796,7 +825,7 @@ def chord_to_key_pos(chord_indices, key_pos):
     return diffs
 
 
-def key_to_key_pos(key_indices, key_pos):
+def key_to_key_pos(key_indices: List[int], key_pos: int) -> ndarray:
     key_positions = []
     for key_index in key_indices:
         key_positions.append(major_key_position(
