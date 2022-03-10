@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+from distutils.debug import DEBUG
 import json
 import logging
 import os
@@ -1087,6 +1088,8 @@ def get_args(default='.') -> Namespace:
                         help="output file criteria, a list of name for output tracks,"
                              "the list can be 'melody','bass','chord',"
                              "'accomaniment','drum'")
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help="Verbose log output")
 
     return parser.parse_args()
 
@@ -1121,7 +1124,7 @@ if __name__ == "__main__":
 
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
+    console.setLevel(logging.DEBUG if args.verbose else logging.INFO)
     # set a format which is simpler for console use
     formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
