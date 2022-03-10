@@ -1,72 +1,71 @@
-import _pickle as pickle
-
-import os
-import math
-import pretty_midi
-import sys
+import argparse
 import copy
-import numpy as np
+import itertools
+import json
+import logging
+import math
+import os
+import sys
 from collections import Counter
+
+import _pickle as pickle
+import coloredlogs
 # import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import itertools
 import music21
+import numpy as np
+import pretty_midi
 
-import json
-import logging
-import coloredlogs
-
-import argparse
-
-major_enharmonics = {'C#':'D-',
-               'D#':'E-',
-               'F#':'G-',
-               'G#':'A-',
-               'A#':'B-'}
+major_enharmonics = {'C#': 'D-',
+                     'D#': 'E-',
+                     'F#': 'G-',
+                     'G#': 'A-',
+                     'A#': 'B-'}
 
 
-minor_enharmonics = {'D-':'C#',
-               'D#':'E-',
-               'G-':'F#',
-               'A-':'G#',
-               'A#':'B-'}
+minor_enharmonics = {'D-': 'C#',
+                     'D#': 'E-',
+                     'G-': 'F#',
+                     'A-': 'G#',
+                     'A#': 'B-'}
 
 octave = 12
 
-pitch_index_to_sharp_names = np.array(['C','C#','D','D#','E','F','F#','G',
-                              'G#','A','A#','B'])
+pitch_index_to_sharp_names = np.array(['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G',
+                                       'G#', 'A', 'A#', 'B'])
 
 
-pitch_index_to_flat_names = np.array(['C','D-','D','E-','E','F','G-','G',
-                             'A-','A','B-','B'])
+pitch_index_to_flat_names = np.array(['C', 'D-', 'D', 'E-', 'E', 'F', 'G-', 'G',
+                                      'A-', 'A', 'B-', 'B'])
 
 
-pitch_name_to_pitch_index = {"G-":-6, "D-":-5, "A-":-4, "E-":-3,
-                             "B-":-2,"F":-1, "C":0, "G":1, "D":2, "A": 3,
-                             "E":4, "B":5, "F#":6,"C#":7,"G#":8, "D#":9,
-                             "A#":10}
+pitch_name_to_pitch_index = {"G-": -6, "D-": -5, "A-": -4, "E-": -3,
+                             "B-": -2, "F": -1, "C": 0, "G": 1, "D": 2, "A": 3,
+                             "E": 4, "B": 5, "F#": 6, "C#": 7, "G#": 8, "D#": 9,
+                             "A#": 10}
 
-pitch_index_to_pitch_name = {v: k for k, v in pitch_name_to_pitch_index.items()}
+pitch_index_to_pitch_name = {v: k for k,
+                             v in pitch_name_to_pitch_index.items()}
 
-valid_major = ["G-", "D-", "A-", "E-", "B-","F", "C","G", "D","A","E", "B"]
+valid_major = ["G-", "D-", "A-", "E-", "B-", "F", "C", "G", "D", "A", "E", "B"]
 
-valid_minor = ["E-","B-","F", "C","G", "D","A","E", "B","F#","C#","G#"]
+valid_minor = ["E-", "B-", "F", "C", "G", "D", "A", "E", "B", "F#", "C#", "G#"]
 
-enharmonic_dict = {"F#":"G-","C#": "D-", "G#":"A-","D#":"E-","A#":"B-"}
+enharmonic_dict = {"F#": "G-", "C#": "D-", "G#": "A-", "D#": "E-", "A#": "B-"}
 enharmonic_reverse_dict = {v: k for k, v in enharmonic_dict.items()}
 
-all_key_names = ['C major','G major','D major','A major',
-                 'E major','B major','F major','B- major',
-                 'E- major','A- major','D- major','G- major',
-                 'A minor','E minor', 'B minor','F# minor',
-                 'C# minor','G# minor','D minor','G minor',
-                 'C minor','F minor','B- minor','E- minor',
+all_key_names = ['C major', 'G major', 'D major', 'A major',
+                 'E major', 'B major', 'F major', 'B- major',
+                 'E- major', 'A- major', 'D- major', 'G- major',
+                 'A minor', 'E minor', 'B minor', 'F# minor',
+                 'C# minor', 'G# minor', 'D minor', 'G minor',
+                 'C minor', 'F minor', 'B- minor', 'E- minor',
                  ]
 
 
 # use ['C','D-','D','E-','E','F','F#','G','A-','A','B-','B'] to map the midi to pitch name
-note_index_to_pitch_index = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2,5]
+note_index_to_pitch_index = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5]
 
 weight = np.array([0.536, 0.274, 0.19])
 alpha = 0.75
@@ -75,8 +74,7 @@ verticalStep = 0.4
 radius = 1.0
 
 
-
-def cal_diameter(piano_roll, key_index,key_change_beat=-1,changed_key_index=-1):
+def cal_diameter(piano_roll, key_index, key_change_beat=-1, changed_key_index=-1):
 
     diameters = []
 
@@ -96,7 +94,6 @@ def cal_diameter(piano_roll, key_index,key_change_beat=-1,changed_key_index=-1):
                 indices.append(note_index_to_pitch_index[shifted_index])
         diameters.append(largest_distance(indices))
 
-
     return diameters
 
 
@@ -104,25 +101,25 @@ def largest_distance(pitches):
     if len(pitches) < 2:
         return 0
     diameter = 0
-    pitch_pairs = itertools.combinations(pitches,2)
+    pitch_pairs = itertools.combinations(pitches, 2)
     for pitch_pair in pitch_pairs:
-        distance = np.linalg.norm(pitch_index_to_position(pitch_pair[0]) - pitch_index_to_position(pitch_pair[1]))
+        distance = np.linalg.norm(pitch_index_to_position(
+            pitch_pair[0]) - pitch_index_to_position(pitch_pair[1]))
         if distance > diameter:
             diameter = distance
     return diameter
 
 
-def piano_roll_to_ce(piano_roll,shift):
+def piano_roll_to_ce(piano_roll, shift):
 
     pitch_index = []
     for i in range(0, piano_roll.shape[1]):
         indices = []
-        for index, j in enumerate(piano_roll[:,i]):
+        for index, j in enumerate(piano_roll[:, i]):
             if j > 0:
                 shifted_index = index % 12 - shift
                 if shifted_index < 0:
                     shifted_index += 12
-
 
                 indices.append(note_index_to_pitch_index[shifted_index])
 
@@ -132,7 +129,7 @@ def piano_roll_to_ce(piano_roll,shift):
     return ce_pos
 
 
-def notes_to_ce(notes,shift):
+def notes_to_ce(notes, shift):
     indices = []
 
     for index, j in enumerate(notes):
@@ -141,7 +138,6 @@ def notes_to_ce(notes,shift):
             shifted_index = index % 12 - shift
             if shifted_index < 0:
                 shifted_index += 12
-
 
             indices.append(note_index_to_pitch_index[shifted_index])
 
@@ -200,7 +196,8 @@ def major_triad_position(root_index):
     fifth_pos = pitch_index_to_position(fifth_index)
     third_pos = pitch_index_to_position(third_index)
 
-    centre_pos = weight[0] * root_pos + weight[1] * fifth_pos + weight[2] * third_pos
+    centre_pos = weight[0] * root_pos + \
+        weight[1] * fifth_pos + weight[2] * third_pos
     return centre_pos
 
 
@@ -213,7 +210,8 @@ def minor_triad_position(root_index):
     fifth_pos = pitch_index_to_position(fifth_index)
     third_pos = pitch_index_to_position(third_index)
 
-    centre_pos = weight[0] * root_pos + weight[1] * fifth_pos + weight[2] * third_pos
+    centre_pos = weight[0] * root_pos + \
+        weight[1] * fifth_pos + weight[2] * third_pos
 
     return centre_pos
 
@@ -227,7 +225,8 @@ def major_key_position(key_index):
     fifth_triad_pos = major_triad_position(fifth_index)
     fourth_triad_pos = major_triad_position(fourth_index)
 
-    key_pos = weight[0] * root_triad_pos + weight[1] * fifth_triad_pos + weight[2] * fourth_triad_pos
+    key_pos = weight[0] * root_triad_pos + weight[1] * \
+        fifth_triad_pos + weight[2] * fourth_triad_pos
 
     return key_pos
 
@@ -244,15 +243,15 @@ def minor_key_position(key_index):
     minor_fifth_triad_pos = minor_triad_position(fifth_index)
 
     key_pos = weight[0] * root_triad_pos + \
-              weight[1] * (alpha * major_fifth_triad_pos +
-                           (1-alpha) * minor_fifth_triad_pos) + \
-              weight[2] * (beta * minor_fourth_triad_pos + \
-                           (1 - beta) * major_fourth_triad_pos)
+        weight[1] * (alpha * major_fifth_triad_pos +
+                     (1-alpha) * minor_fifth_triad_pos) + \
+        weight[2] * (beta * minor_fourth_triad_pos +
+                     (1 - beta) * major_fourth_triad_pos)
 
     return key_pos
 
 
-def cal_key(piano_roll, key_names,end_ratio=0.5):
+def cal_key(piano_roll, key_names, end_ratio=0.5):
     # use the song to the place of end_ratio to find the key
     # for classical it should be less than 0.2
     end = int(piano_roll.shape[1] * end_ratio)
@@ -263,7 +262,6 @@ def cal_key(piano_roll, key_names,end_ratio=0.5):
     for name in key_names:
         key = name.split()[0].upper()
         mode = name.split()[1]
-
 
         if mode == 'minor':
             if key not in valid_minor:
@@ -302,17 +300,17 @@ def cal_key(piano_roll, key_names,end_ratio=0.5):
             key_index -= 3
         key_shift_name = pitch_index_to_pitch_name[key_index]
 
-
         if key_shift_name in pitch_index_to_sharp_names:
-            key_shift_for_ce = np.argwhere(pitch_index_to_sharp_names == key_shift_name)[0][0]
+            key_shift_for_ce = np.argwhere(
+                pitch_index_to_sharp_names == key_shift_name)[0][0]
         else:
-            key_shift_for_ce = np.argwhere(pitch_index_to_flat_names == key_shift_name)[0][0]
+            key_shift_for_ce = np.argwhere(
+                pitch_index_to_flat_names == key_shift_name)[0][0]
         key_shifts.append(key_shift_for_ce)
-        ce = piano_roll_to_ce(piano_roll[:,:end],key_shift_for_ce)
+        ce = piano_roll_to_ce(piano_roll[:, :end], key_shift_for_ce)
         distance = np.linalg.norm(ce - key_pos)
         distances.append(distance)
         key_indices.append(key_index)
-
 
     index = np.argmin(np.array(distances))
     key_name = key_names[index]
@@ -320,6 +318,7 @@ def cal_key(piano_roll, key_names,end_ratio=0.5):
     key_shift_for_ce = key_shifts[index]
     # key_index = key_indices[index]
     return key_name, key_pos, key_shift_for_ce
+
 
 def pianoroll_to_pitch(pianoroll):
     pitch_roll = np.zeros((12, pianoroll.shape[1]))
@@ -329,18 +328,18 @@ def pianoroll_to_pitch(pianoroll):
 
 
 def note_to_index(pianoroll):
-    note_ind = np.zeros((128,pianoroll.shape[1]))
+    note_ind = np.zeros((128, pianoroll.shape[1]))
     for i in range(0, pianoroll.shape[1]):
         step = []
         for j, note in enumerate(pianoroll[:, i]):
             if note != 0:
                 step.append(j)
         if len(step) > 0:
-            note_ind[step[-1],i] = 1
+            note_ind[step[-1], i] = 1
     return np.transpose(note_ind)
 
 
-def merge_tension(metric, beat_indices, down_beat_indices,window_size=-1):
+def merge_tension(metric, beat_indices, down_beat_indices, window_size=-1):
 
     # every bar window
     if window_size == -1:
@@ -348,49 +347,47 @@ def merge_tension(metric, beat_indices, down_beat_indices,window_size=-1):
         new_metric = []
 
         for i in range(len(down_beat_indices)-1):
-            new_metric.append(np.mean(metric[down_beat_indices[i]:down_beat_indices[i+1]],axis=0))
+            new_metric.append(
+                np.mean(metric[down_beat_indices[i]:down_beat_indices[i+1]], axis=0))
 
     else:
         new_metric = []
 
-        for i in range(0,len(beat_indices) - window_size,window_size):
-            new_metric.append(np.mean(metric[beat_indices[i]:beat_indices[i + window_size]], axis=0))
+        for i in range(0, len(beat_indices) - window_size, window_size):
+            new_metric.append(
+                np.mean(metric[beat_indices[i]:beat_indices[i + window_size]], axis=0))
 
     return np.array(new_metric)
 
 
-
-def moving_average(tension,window=4):
-
+def moving_average(tension, window=4):
 
     # size moving window, the output size is the same
     outputs = []
-    zeros = np.zeros((window,),dtype = tension.dtype)
+    zeros = np.zeros((window,), dtype=tension.dtype)
 
-    tension = np.concatenate([tension,zeros],axis=0)
+    tension = np.concatenate([tension, zeros], axis=0)
     for i in range(0, tension.shape[0]-window+1):
         outputs.append(np.mean(tension[i:i+window]))
     return np.array(outputs)
 
 
-
-
-def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down_beat_time,down_beat_indices, output_folder, window_size=1, key_name=''):
+def cal_tension(file_name, piano_roll, sixteenth_time, beat_time, beat_indices, down_beat_time, down_beat_indices, output_folder, window_size=1, key_name=''):
     try:
-
 
         base_name = os.path.basename(file_name)
 
         # all the major key pos is C major pos, all the minor key pos is a minor pos
 
-        key_name,key_pos, note_shift = cal_key(piano_roll, key_name,end_ratio=args.end_ratio)
+        key_name, key_pos, note_shift = cal_key(
+            piano_roll, key_name, end_ratio=args.end_ratio)
         # bar_step = downbeat_indices[1] - downbeat_indices[0]
-        centroids = cal_centroid(piano_roll, note_shift,-1,-1)
-
+        centroids = cal_centroid(piano_roll, note_shift, -1, -1)
 
         if args.key_changed is True:
             # use a bar window to detect key change
-            merged_centroids = merge_tension(centroids,beat_indices, down_beat_indices,window_size=-1)
+            merged_centroids = merge_tension(
+                centroids, beat_indices, down_beat_indices, window_size=-1)
 
             silent = np.where(np.linalg.norm(merged_centroids, axis=-1) == 0)
             merged_centroids = np.array(merged_centroids)
@@ -401,19 +398,24 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
             key_diff[silent] = 0
 
             diameters = cal_diameter(piano_roll, note_shift, -1, -1)
-            diameters = merge_tension(diameters, beat_indices, down_beat_indices,window_size=-1)
+            diameters = merge_tension(
+                diameters, beat_indices, down_beat_indices, window_size=-1)
             #
 
-            key_change_bar = detect_key_change(key_diff,diameters,start_ratio=args.end_ratio)
+            key_change_bar = detect_key_change(
+                key_diff, diameters, start_ratio=args.end_ratio)
             if key_change_bar != -1:
-                key_change_beat = np.argwhere(beat_time == down_beat_time[key_change_bar])[0][0]
+                key_change_beat = np.argwhere(
+                    beat_time == down_beat_time[key_change_bar])[0][0]
                 change_time = down_beat_time[key_change_bar]
-                changed_key_name, changed_key_pos, changed_note_shift = get_key_index_change(pm, change_time,sixteenth_time)
+                changed_key_name, changed_key_pos, changed_note_shift = get_key_index_change(
+                    pm, change_time, sixteenth_time)
                 if changed_key_name != key_name:
                     m = int(change_time // 60)
                     s = int(change_time % 60)
 
-                    logger.info(f'key changed, change time is {m} minutes, {s} second')
+                    logger.info(
+                        f'key changed, change time is {m} minutes, {s} second')
 
                     logger.info(f'new note shift is {changed_note_shift}')
                 else:
@@ -436,9 +438,11 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
             change_time = -1
             key_change_bar = -1
 
-        centroids = cal_centroid(piano_roll, note_shift,key_change_beat,changed_note_shift)
+        centroids = cal_centroid(
+            piano_roll, note_shift, key_change_beat, changed_note_shift)
 
-        merged_centroids = merge_tension(centroids,beat_indices, down_beat_indices, window_size=window_size)
+        merged_centroids = merge_tension(
+            centroids, beat_indices, down_beat_indices, window_size=window_size)
         merged_centroids = np.array(merged_centroids)
 
         silent = np.where(np.linalg.norm(merged_centroids, axis=-1) < 0.3)
@@ -453,20 +457,22 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
             changed_step = int(key_change_beat / abs(window_size))
             for step in range(merged_centroids.shape[0]):
                 if step < changed_step:
-                    key_diff[step] = np.linalg.norm(merged_centroids[step] - key_pos)
+                    key_diff[step] = np.linalg.norm(
+                        merged_centroids[step] - key_pos)
                 else:
-                    key_diff[step] = np.linalg.norm(merged_centroids[step] - changed_key_pos)
+                    key_diff[step] = np.linalg.norm(
+                        merged_centroids[step] - changed_key_pos)
         else:
-            key_diff = np.linalg.norm(merged_centroids - key_pos,axis=-1)
-
+            key_diff = np.linalg.norm(merged_centroids - key_pos, axis=-1)
 
         key_diff[silent] = 0
 
-        diameters = cal_diameter(piano_roll, note_shift,key_change_beat,changed_note_shift)
-        diameters = merge_tension(diameters, beat_indices, down_beat_indices, window_size)
+        diameters = cal_diameter(
+            piano_roll, note_shift, key_change_beat, changed_note_shift)
+        diameters = merge_tension(
+            diameters, beat_indices, down_beat_indices, window_size)
         #
         diameters[silent] = 0
-
 
         centroid_diff = np.diff(merged_centroids, axis=0)
         #
@@ -474,7 +480,6 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
 
         centroid_diff = np.linalg.norm(centroid_diff, axis=-1)
         centroid_diff = np.insert(centroid_diff, 0, 0)
-
 
         total_tension = key_diff
 
@@ -495,15 +500,15 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
                                         'wb'))
 
         pickle.dump(diameters, open(os.path.join(new_output_folder,
-                                                name_split[0] + '.diameter'),
-                                   'wb'))
+                                                 name_split[0] + '.diameter'),
+                                    'wb'))
         pickle.dump(centroid_diff, open(os.path.join(new_output_folder,
-                                                name_split[0] + '.centroid_diff'),
-                                   'wb'))
+                                                     name_split[0] + '.centroid_diff'),
+                                        'wb'))
 
         pickle.dump(window_time[:len(total_tension)], open(os.path.join(new_output_folder,
-                                                     name_split[0] + '.time'),
-                                        'wb'))
+                                                                        name_split[0] + '.time'),
+                                                           'wb'))
         # draw_tension(total_tension,os.path.join(new_output_folder,
         #                                              base_name[:-4]+'_tensile_strain.png'))
         # draw_tension(diameters, os.path.join(new_output_folder,
@@ -511,18 +516,19 @@ def cal_tension(file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down
         # draw_tension(centroid_diff, os.path.join(new_output_folder,
         #                                      base_name[:-4] + '_centroid_diff.png'))
 
-        return [total_tension, diameters, centroid_diff, key_name,change_time,key_change_bar, changed_key_name, new_output_folder]
+        return [total_tension, diameters, centroid_diff, key_name, change_time, key_change_bar, changed_key_name, new_output_folder]
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
-        exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
+        exception_str = 'Unexpected error in ' + \
+            file_name + ':\n', e, sys.exc_info()[0]
         logger.info(exception_str)
 
 
-def get_key_index_change(pm,start_time,sixteenth_time):
+def get_key_index_change(pm, start_time, sixteenth_time):
 
     new_pm = copy.deepcopy(pm)
     for instrument in new_pm.instruments:
-        for i,note in enumerate(instrument.notes):
+        for i, note in enumerate(instrument.notes):
             if note.start > start_time:
                 instrument.notes = instrument.notes[i:]
                 break
@@ -530,7 +536,7 @@ def get_key_index_change(pm,start_time,sixteenth_time):
     piano_roll = get_piano_roll(new_pm, sixteenth_time)
     key_name = all_key_names
 
-    key_name, key_pos, note_shift = cal_key(piano_roll, key_name,end_ratio=1)
+    key_name, key_pos, note_shift = cal_key(piano_roll, key_name, end_ratio=1)
 
     return key_name, key_pos, note_shift
 
@@ -548,7 +554,7 @@ def note_pitch(melody_track):
     return pitch_sum
 
 
-def get_piano_roll(pm,beat_times):
+def get_piano_roll(pm, beat_times):
     piano_roll = pm.get_piano_roll(times=beat_times)
     np.nan_to_num(piano_roll, copy=False)
     piano_roll = piano_roll > 0
@@ -556,7 +562,8 @@ def get_piano_roll(pm,beat_times):
 
     return piano_roll
 
-def cal_centroid(piano_roll,key_index,key_change_beat=-1,changed_key_index=-1):
+
+def cal_centroid(piano_roll, key_index, key_change_beat=-1, changed_key_index=-1):
 
     centroids = []
     for time_step in range(0, piano_roll.shape[1]):
@@ -573,13 +580,13 @@ def cal_centroid(piano_roll,key_index,key_change_beat=-1,changed_key_index=-1):
     return centroids
 
 
-def detect_key_change(key_diff,diameter,start_ratio=0.5):
+def detect_key_change(key_diff, diameter, start_ratio=0.5):
 
     # 8 bar window
     key_diff_ratios = []
     diameter_ratios = []
     fill_one = False
-    for i in range(8,key_diff.shape[0]-8):
+    for i in range(8, key_diff.shape[0]-8):
         if fill_one and steps > 0:
             key_diff_ratios.append(1)
             steps -= 1
@@ -595,7 +602,6 @@ def detect_key_change(key_diff,diameter,start_ratio=0.5):
             fill_one = True
             steps = 4
 
-
     # for i in range(8,diameter.shape[0] - 8):
     #
     #     if np.any(diameter[i - 8:i]) and np.any(diameter[i:i + 8]):
@@ -605,9 +611,7 @@ def detect_key_change(key_diff,diameter,start_ratio=0.5):
     #     else:
     #         diameter_ratios.append(1)
 
-
-    for i in range(int(len(key_diff_ratios) * start_ratio),len(key_diff_ratios)-2):
-
+    for i in range(int(len(key_diff_ratios) * start_ratio), len(key_diff_ratios)-2):
 
         if np.mean(key_diff_ratios[i:i+4]) > 2:
             key_diff_change_bar = i
@@ -622,7 +626,6 @@ def detect_key_change(key_diff,diameter,start_ratio=0.5):
     #         break
     # else:
     #     diameter_change_bar = -1
-
 
     # return key_diff_change_bar + int(diameter.shape[0] * start_ratio) if key_diff_change_bar < diameter_change_bar and key_diff_change_bar > 0 else diameter_change_bar + int(diameter.shape[0] * start_ratio)
     return key_diff_change_bar + 12 if key_diff_change_bar != -1 else key_diff_change_bar
@@ -654,16 +657,16 @@ def remove_drum_track(pm):
     return pm
 
 
-
 def get_beat_time(pm, beat_division=4):
     beats = pm.get_beats()
 
-    beats = np.unique(beats,axis=0)
+    beats = np.unique(beats, axis=0)
 
     divided_beats = []
     for i in range(len(beats) - 1):
         for j in range(beat_division):
-            divided_beats.append((beats[i + 1] - beats[i]) / beat_division * j + beats[i])
+            divided_beats.append(
+                (beats[i + 1] - beats[i]) / beat_division * j + beats[i])
     divided_beats.append(beats[-1])
     divided_beats = np.unique(divided_beats, axis=0)
 
@@ -673,10 +676,10 @@ def get_beat_time(pm, beat_division=4):
 
     down_beats = pm.get_downbeats()
     if divided_beats[-1] > down_beats[-1]:
-        down_beats = np.append(down_beats, down_beats[-1] - down_beats[-2] + down_beats[-1])
+        down_beats = np.append(
+            down_beats, down_beats[-1] - down_beats[-2] + down_beats[-1])
 
     down_beats = np.unique(down_beats, axis=0)
-
 
     down_beat_indices = []
     for down_beat in down_beats:
@@ -686,8 +689,7 @@ def get_beat_time(pm, beat_division=4):
     return np.array(divided_beats), np.array(beats), np.array(down_beats), beat_indices, down_beat_indices
 
 
-
-def extract_notes(file_name,track_num):
+def extract_notes(file_name, track_num):
     try:
         pm = pretty_midi.PrettyMIDI(file_name)
         pm = remove_drum_track(pm)
@@ -707,17 +709,19 @@ def extract_notes(file_name,track_num):
                                f'less than the required track num {track_num}. Use all the tracks')
             pm.instruments = pm.instruments[:track_num]
 
-
-        sixteenth_time, beat_time,down_beat_time,beat_indices,down_beat_indices = get_beat_time(pm, beat_division=4)
+        sixteenth_time, beat_time, down_beat_time, beat_indices, down_beat_indices = get_beat_time(
+            pm, beat_division=4)
 
         piano_roll = get_piano_roll(pm, sixteenth_time)
 
     except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
-        exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
+        exception_str = 'Unexpected error in ' + \
+            file_name + ':\n', e, sys.exc_info()[0]
         logger.info(exception_str)
         return None
 
-    return [pm,piano_roll,sixteenth_time,beat_time,down_beat_time,beat_indices,down_beat_indices]
+    return [pm, piano_roll, sixteenth_time, beat_time, down_beat_time, beat_indices, down_beat_indices]
+
 
 def walk(folder_name):
     files = []
@@ -725,7 +729,7 @@ def walk(folder_name):
         for file_name in f:
             endname = file_name.split('.')[-1].lower()
             if endname == 'mid' or endname == 'midi':
-                files.append(os.path.join(p,file_name))
+                files.append(os.path.join(p, file_name))
     return files
 
 
@@ -735,7 +739,7 @@ def get_args(default='.'):
                         help="MIDI file input folder")
     parser.add_argument('-f', '--file_name', default='', type=str,
                         help="input MIDI file name")
-    parser.add_argument('-o', '--output_folder',default=default,type=str,
+    parser.add_argument('-o', '--output_folder', default=default, type=str,
                         help="MIDI file output folder")
     parser.add_argument('-w', '--window_size', default=-1, type=int,
                         help="Tension calculation window size, 1 for a beat, 2 for 2 beat etc., -1 for a downbeat")
@@ -760,42 +764,49 @@ def get_args(default='.'):
 
     return parser.parse_args()
 
-def note_to_key_pos(note_indices,key_pos):
-    note_positions = []
-    for note_index in note_indices:
-        note_positions.append(pitch_index_to_position(note_index_to_pitch_index[note_index]))
-    diffs = np.linalg.norm(np.array(note_positions)-key_pos,axis=1)
-    return diffs
 
-def note_to_note_pos(note_indices,note_pos):
+def note_to_key_pos(note_indices, key_pos):
     note_positions = []
     for note_index in note_indices:
-        note_positions.append(pitch_index_to_position(note_index_to_pitch_index[note_index]))
-    diffs = np.linalg.norm(np.array(note_positions)-note_pos,axis=1)
+        note_positions.append(pitch_index_to_position(
+            note_index_to_pitch_index[note_index]))
+    diffs = np.linalg.norm(np.array(note_positions)-key_pos, axis=1)
     return diffs
 
 
-def chord_to_key_pos(chord_indices,key_pos):
+def note_to_note_pos(note_indices, note_pos):
+    note_positions = []
+    for note_index in note_indices:
+        note_positions.append(pitch_index_to_position(
+            note_index_to_pitch_index[note_index]))
+    diffs = np.linalg.norm(np.array(note_positions)-note_pos, axis=1)
+    return diffs
+
+
+def chord_to_key_pos(chord_indices, key_pos):
     chord_positions = []
     for chord_index in chord_indices:
-        chord_positions.append(major_triad_position(note_index_to_pitch_index[chord_index]))
+        chord_positions.append(major_triad_position(
+            note_index_to_pitch_index[chord_index]))
 
     for chord_index in chord_indices:
-        chord_positions.append(minor_triad_position(note_index_to_pitch_index[chord_index]))
-    diffs = np.linalg.norm(np.array(chord_positions)-key_pos,axis=1)
+        chord_positions.append(minor_triad_position(
+            note_index_to_pitch_index[chord_index]))
+    diffs = np.linalg.norm(np.array(chord_positions)-key_pos, axis=1)
     return diffs
 
 
-def key_to_key_pos(key_indices,key_pos):
+def key_to_key_pos(key_indices, key_pos):
     key_positions = []
     for key_index in key_indices:
-        key_positions.append(major_key_position(note_index_to_pitch_index[key_index]))
+        key_positions.append(major_key_position(
+            note_index_to_pitch_index[key_index]))
 
     for key_index in key_indices:
-        key_positions.append(minor_key_position(note_index_to_pitch_index[key_index]))
+        key_positions.append(minor_key_position(
+            note_index_to_pitch_index[key_index]))
 
-
-    diffs = np.linalg.norm(np.array(key_positions)-key_pos,axis=1)
+    diffs = np.linalg.norm(np.array(key_positions)-key_pos, axis=1)
     return diffs
 
 
@@ -852,13 +863,13 @@ def key_to_key_pos(key_indices,key_pos):
 #         logger.info(f'cannot find the key of song {file_name}, skip this file')
 
 
-if __name__== "__main__":
+if __name__ == "__main__":
     args = get_args()
 
     args.output_folder = os.path.abspath(args.output_folder)
 
     if not os.path.exists(args.output_folder):
-        os.makedirs(args.output_folder,exist_ok=True)
+        os.makedirs(args.output_folder, exist_ok=True)
 
     logger = logging.getLogger(__name__)
 
@@ -883,7 +894,6 @@ if __name__== "__main__":
         logger.info('invalid vertical step, use 0.4 instead')
         verticalStep = 0.4
 
-
     output_json_name = os.path.join(args.output_folder, "files_result.json")
 
     files_result = {}
@@ -900,20 +910,18 @@ if __name__== "__main__":
     else:
         all_names = walk(args.input_folder)
 
-
     for file_name in all_names:
 
         base_name = os.path.basename(file_name)
 
-
         # logger.info(f'working on {file_name}')
         # file_name = '/Users/ruiguo/Downloads/36067affdbefb38a779e510e6edabe6b.mid'
-        result = extract_notes(file_name,args.track_num)
+        result = extract_notes(file_name, args.track_num)
 
         if result is None:
             continue
         else:
-            pm,piano_roll,sixteenth_time,beat_time,down_beat_time,beat_indices,down_beat_indices = result
+            pm, piano_roll, sixteenth_time, beat_time, down_beat_time, beat_indices, down_beat_indices = result
 
         try:
             if args.key_name == '':
@@ -921,19 +929,17 @@ if __name__== "__main__":
                 key_name = all_key_names
 
                 result = cal_tension(
-                    file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down_beat_time,down_beat_indices, args.output_folder, args.window_size,key_name)
+                    file_name, piano_roll, sixteenth_time, beat_time, beat_indices, down_beat_time, down_beat_indices, args.output_folder, args.window_size, key_name)
 
             else:
                 result = cal_tension(
-                    file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down_beat_time,down_beat_indices, args.output_folder, args.window_size,[args.key_name])
+                    file_name, piano_roll, sixteenth_time, beat_time, beat_indices, down_beat_time, down_beat_indices, args.output_folder, args.window_size, [args.key_name])
 
-
-            total_tension, diameters,centroid_diff, key_name, key_change_time, key_change_bar,key_change_name, new_output_foler = result
+            total_tension, diameters, centroid_diff, key_name, key_change_time, key_change_bar, key_change_name, new_output_foler = result
 
             if args.key_name == '':
                 result_list = []
                 result_list.append(key_name)
-
 
                 s = music21.converter.parse(file_name)
                 # s = music21.converter.parse(files[i][:-12] + '_remi.mid')
@@ -956,51 +962,55 @@ if __name__== "__main__":
 
                 if key1_mode == 'major':
                     if key1_name in major_enharmonics:
-                        result_list.append(major_enharmonics[key1_name] + ' ' + key1_mode)
+                        result_list.append(
+                            major_enharmonics[key1_name] + ' ' + key1_mode)
                     else:
                         result_list.append(key1_name + ' ' + key1_mode)
                 else:
                     if key1_name in minor_enharmonics:
-                        result_list.append(minor_enharmonics[key1_name] + ' ' + key1_mode)
+                        result_list.append(
+                            minor_enharmonics[key1_name] + ' ' + key1_mode)
                     else:
                         result_list.append(key1_name + ' ' + key1_mode)
 
                 if key2_mode == 'major':
                     if key2_name in major_enharmonics:
-                        result_list.append(major_enharmonics[key2_name] + ' ' + key2_mode)
+                        result_list.append(
+                            major_enharmonics[key2_name] + ' ' + key2_mode)
                     else:
                         result_list.append(key2_name + ' ' + key2_mode)
                 else:
                     if key2_name in minor_enharmonics:
-                        result_list.append(minor_enharmonics[key2_name] + ' ' + key2_mode)
+                        result_list.append(
+                            minor_enharmonics[key2_name] + ' ' + key2_mode)
                     else:
                         result_list.append(key2_name + ' ' + key2_mode)
 
                 if key3_mode == 'major':
                     if key3_name in major_enharmonics:
-                        result_list.append(major_enharmonics[key3_name] + ' ' + key3_mode)
+                        result_list.append(
+                            major_enharmonics[key3_name] + ' ' + key3_mode)
                     else:
                         result_list.append(key3_name + ' ' + key3_mode)
                 else:
                     if key3_name in minor_enharmonics:
-                        result_list.append(minor_enharmonics[key3_name] + ' ' + key3_mode)
+                        result_list.append(
+                            minor_enharmonics[key3_name] + ' ' + key3_mode)
                     else:
                         result_list.append(key3_name + ' ' + key3_mode)
 
                 count_result = Counter(result_list)
-                result_key = sorted(count_result, key=count_result.get, reverse=True)[0]
-
+                result_key = sorted(
+                    count_result, key=count_result.get, reverse=True)[0]
 
                 result = cal_tension(
-                file_name, piano_roll,sixteenth_time,beat_time,beat_indices,down_beat_time,down_beat_indices, args.output_folder, args.window_size,[result_key])
+                    file_name, piano_roll, sixteenth_time, beat_time, beat_indices, down_beat_time, down_beat_indices, args.output_folder, args.window_size, [result_key])
 
                 total_tension, diameters, centroid_diff, key_name, key_change_time, key_change_bar, key_change_name, new_output_foler = result
 
-
-
-
             print(f'file name {file_name}, calculated key name {key_name}')
-            print(f'if the calculated key name is not correct, you can set the key name by -n parameter')
+            print(
+                f'if the calculated key name is not correct, you can set the key name by -n parameter')
 
             if np.count_nonzero(total_tension) == 0:
                 logger.info(f"tensile 0 skip {file_name}")
@@ -1013,20 +1023,24 @@ if __name__== "__main__":
                 continue
 
         except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError) as e:
-            exception_str = 'Unexpected error in ' + file_name + ':\n', e, sys.exc_info()[0]
+            exception_str = 'Unexpected error in ' + \
+                file_name + ':\n', e, sys.exc_info()[0]
             logger.info(exception_str)
 
         if key_name is not None:
             files_result[new_output_foler + '/' + base_name] = []
             files_result[new_output_foler + '/' + base_name].append(key_name)
-            files_result[new_output_foler + '/' + base_name].append(int(key_change_time))
-            files_result[new_output_foler + '/' + base_name].append(int(key_change_bar))
-            files_result[new_output_foler + '/' + base_name].append(key_change_name)
+            files_result[new_output_foler + '/' +
+                         base_name].append(int(key_change_time))
+            files_result[new_output_foler + '/' +
+                         base_name].append(int(key_change_bar))
+            files_result[new_output_foler + '/' +
+                         base_name].append(key_change_name)
 
         else:
-            logger.info(f'cannot find the key of song {file_name}, skip this file')
+            logger.info(
+                f'cannot find the key of song {file_name}, skip this file')
 
     logger.info(len(files_result))
-    with open(os.path.join(args.output_folder,'files_result.json'), 'w') as fp:
+    with open(os.path.join(args.output_folder, 'files_result.json'), 'w') as fp:
         json.dump(files_result, fp)
-
