@@ -277,7 +277,7 @@ def walk(folder_name: str) -> List[FilePath]:
 
 def relative_duration(pm: PrettyMIDI) -> ndarray:
     notes = np.array([len(pm.instruments[i].notes)
-                     for i in range(len(pm.instruments))])
+                      for i in range(len(pm.instruments))])
     if np.max(notes) == 0:
         return None
     relative_durations = notes / np.max(notes)
@@ -416,7 +416,7 @@ def pitch(pm: PrettyMIDI) -> ndarray:
         stds_norm = (stds - np.min(stds)) / (np.max(stds) - np.min(stds))
 
     result = np.vstack((highest, lowest, modes, stds,
-                       highest_norm, lowest_norm, modes_norm, stds_norm))
+                        highest_norm, lowest_norm, modes_norm, stds_norm))
     result = result.T
 
     # logger.info(result.shape)
