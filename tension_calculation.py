@@ -790,6 +790,8 @@ def get_args(default='.') -> argparse.Namespace:
     parser.add_argument('-v', '--vertical_step', default=0.4, type=float,
                         help="the vertical step parameter in the spiral array,"
                              "which should be set between sqrt(2/15) and sqrt(0.2)")
+    parser.add_argument('--verbose', action='store_true',
+                        help="Verbose log output")
 
     return parser.parse_args()
 
@@ -908,7 +910,7 @@ if __name__ == "__main__":
                         datefmt='%Y-%m-%d %H:%M:%S', filename=logfile)
 
     console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
+    console.setLevel(logging.DEBUG if args.verbose else logging.INFO)
     # set a format which is simpler for console use
     formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
