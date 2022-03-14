@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-from distutils.debug import DEBUG
 import json
 import logging
 import os
@@ -11,9 +10,11 @@ from argparse import Namespace
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
+from distutils.debug import DEBUG
 from functools import reduce
 from gettext import install
-from typing import Dict, List, Tuple
+from optparse import Option
+from typing import Any, Dict, List, Optional, Tuple
 
 import coloredlogs
 import numpy as np
@@ -845,11 +846,12 @@ def predict(all_names: List[FilePath],
             melody_model: RandomForestClassifier,
             bass_model: RandomForestClassifier,
             chord_model: RandomForestClassifier,
-            drum_model: RandomForestClassifier):
+            drum_model: RandomForestClassifier,
+            save_program_file_step: Optional[int] = None):
 
     all_file_prog = {}
 
-    for file_name in all_names:
+    for idx, file_name in enumerate(all_names):
         logger.debug(f'the file is {file_name}')
 
         try:
@@ -1070,6 +1072,9 @@ def predict(all_names: List[FilePath],
             pm_new.write(output_name)
             all_file_prog[output_name] = result_program
 
+            if save_program_file_step and idx + 1 == save_program_file_step:
+                save_predicted(all_file_prog, args.output_folder, step=idx + 1)
+
         except Exception as e:
             logger.warning(e)
 
@@ -1088,10 +1093,18 @@ def get_args(default='.') -> Namespace:
                         help="output file criteria, a list of name for output tracks,"
                              "the list can be 'melody','bass','chord',"
                              "'accomaniment','drum'")
+    parser.add_argument('--save-step', default=None, type=int,
+                        help="save program results file on each step (number of predicted files)")
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="Verbose log output")
-
     return parser.parse_args()
+
+
+def save_predicted(all_file_prog: Dict[str, Any],
+                   output_folder: str, step: Optional[int] = None):
+    fname = f"program_result{'_step_' + step if step else ''}.json"
+    with open(os.path.join(output_folder, fname), 'w') as fp:
+        json.dump(all_file_prog, fp, ensure_ascii=False)
 
 
 if __name__ == "__main__":
@@ -1145,9 +1158,8 @@ if __name__ == "__main__":
                             args.output_folder,
                             args.required_tracks,
                             melody_model, bass_model, chord_model, drum_model)
+    save_predicted(all_file_prog, args.output_folder)
 
-    with open(os.path.join(args.output_folder, 'program_result.json'), 'w') as fp:
-        json.dump(all_file_prog, fp, ensure_ascii=False)
     result_file_len = len(all_file_prog.keys())
     logger.info(f'result file {result_file_len}')
     logger.info(f'ratio = {result_file_len / total_file_len}')
