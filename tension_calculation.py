@@ -675,10 +675,12 @@ def detect_key_change(key_diff: ndarray,
 
 
 def remove_drum_track(pm: PrettyMIDI) -> PrettyMIDI:
-
-    for instrument in pm.instruments:
-        if instrument.is_drum:
-            pm.instruments.remove(instrument)
+    instrument_idx = []
+    for idx in range(len(pm.instruments)):
+        if pm.instruments[idx].is_drum:
+            instrument_idx.append(idx)
+    for idx in instrument_idx[::-1]:
+        del pm.instruments[idx]
     return pm
 
 

@@ -311,13 +311,13 @@ def occupation_polyphony_rate(pm: PrettyMIDI) -> Tuple[ndarray, ndarray]:
     occupation_rate = []
     polyphony_rate = []
 
+    total_roll = pm.get_piano_roll()
     for instrument in pm.instruments:
-        piano_roll = get_piano_roll(instrument)
+        piano_roll = instrument.get_piano_roll()
         if piano_roll.shape[1] == 0:
             occupation_rate.append(0)
         else:
-            occupation_rate.append(np.count_nonzero(
-                np.any(piano_roll, 0)) / piano_roll.shape[1])
+            occupation_rate.append(np.count_nonzero(np.any(piano_roll, 0)) / total_roll.shape[1])
         if np.count_nonzero(np.any(piano_roll, 0)) == 0:
             polyphony_rate.append(0)
         else:
