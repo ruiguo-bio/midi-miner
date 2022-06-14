@@ -868,26 +868,27 @@ def predict(all_names: List[FilePath],
             # logger.info(features.shape)
 
             progs = []
+            melody_tracks = 0
+            predicted_melody_tracks = 0
+            bass_tracks = 0
+            predicted_bass_tracks = 0
+            chord_tracks = 0
+            predicted_chord_tracks = 0
+            drum_tracks = 0
+            predicted_drum_tracks = 0
 
-            melody_tracks = np.count_nonzero(features.is_melody == True)
-
-            bass_tracks = np.count_nonzero(features.is_bass == True)
-
-            chord_tracks = np.count_nonzero(features.is_chord == True)
-
-            drum_tracks = np.count_nonzero(features.is_drum == True)
-
-            predicted_melody_tracks = np.count_nonzero(
-                features.melody_predict == True)
-
-            predicted_bass_tracks = np.count_nonzero(
-                features.bass_predict == True)
-
-            predicted_chord_tracks = np.count_nonzero(
-                features.chord_predict == True)
-
-            predicted_drum_tracks = np.count_nonzero(
-                features.drum_predict == True)
+            if 'melody' in required_tracks:
+                melody_tracks = np.count_nonzero(features.is_melody == True)
+                predicted_melody_tracks = np.count_nonzero(features.melody_predict == True)
+            if 'bass' in required_tracks:
+                bass_tracks = np.count_nonzero(features.is_bass == True)
+                predicted_bass_tracks = np.count_nonzero(features.bass_predict == True)
+            if 'chord' in required_tracks:
+                chord_tracks = np.count_nonzero(features.is_chord == True)
+                predicted_chord_tracks = np.count_nonzero(features.chord_predict == True)
+            if 'drum' in required_tracks:
+                drum_tracks = np.count_nonzero(features.is_drum == True)
+                predicted_drum_tracks = np.count_nonzero(features.drum_predict == True)
 
             # if features.shape[0] < 2:
             #     logger.info(f'track number is less than 2, skip {file_name}')

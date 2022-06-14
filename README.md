@@ -1,5 +1,9 @@
-# Midi Miner
-Python MIDI track classifier and tonal tension calculation based on spiral array theory
+# Midi Miner Specfic
+Python MIDI Specfic track classifier and tonal tension calculation based on spiral array theory
+
+When I forked from the orignal repo, it just check -t "str" is in the input Midi file, and save other type of tracks into the output file.
+
+This one only save your Specficed track!
 
 ## installation
 
@@ -7,13 +11,6 @@ Python MIDI track classifier and tonal tension calculation based on spiral array
 ensure your python version > 3.8:
 
 pip install -r requirements.txt
-
-### conda
-
-conda env create -f environment.yml
-
-conda activate midi-miner
-
 
 ## Usage
 Please refer to the [example notebook](example.ipynb) file for detailed examples.
@@ -57,4 +54,4 @@ Guo R, Simpson I, Magnusson T, Kiefer C., Herremans D..  2020.  A variational au
 }
 ```
 
-
+SuperHacker UEFI. https://github.com/UEFI-code/midi-miner-specifc

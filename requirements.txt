@@ -1,4 +1,4 @@
-scikit-learn==1.0.2
+scikit-learn
 coloredlogs>=14.0
 matplotlib>=3.2.1
 mido>=1.2.9
