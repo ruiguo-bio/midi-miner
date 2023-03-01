@@ -468,8 +468,8 @@ def cal_tension(file_name: str,
             centroids, beat_indices, down_beat_indices, window_size=window_size)
         merged_centroids = np.array(merged_centroids)
 
-        silent = np.where(np.linalg.norm(merged_centroids, axis=-1) < 0.3)
-        merged_centroids[silent] = 0
+        silent = np.where(np.linalg.norm(merged_centroids, axis=-1) < 0.1)
+
         if window_size == -1:
             window_time = down_beat_time
         else:

@@ -1,8 +1,9 @@
 from __future__ import print_function
-
+from joblib import Parallel, delayed
 import argparse
 import json
 import logging
+import multiprocessing
 import os
 import pickle
 import sys
@@ -14,6 +15,7 @@ from distutils.debug import DEBUG
 from functools import reduce
 from gettext import install
 from optparse import Option
+
 from typing import Any, Dict, List, Optional, Tuple
 
 import coloredlogs
@@ -851,234 +853,278 @@ def predict(all_names: List[FilePath],
 
     all_file_prog = {}
 
-    for idx, file_name in enumerate(all_names):
-        logger.debug(f'the file is {file_name}')
+    # return_events = []
+    # total_number = 0
+    # #
+    # #
+    # for i in range(len(files)):
+    #     logger.info(f'{i}th file {files[i]}')
+    #     # if i < 277:
+    #     #     continue
+    #     event = cal_separate_file(files, i, augment=augment, add_control=add_control, rest_multi=rest_multi,
+    #                               add_bar=add_bar)
+    #     if event:
+    #         return_events.append(event)
+    #         total_number += len(event)
+    #
 
-        try:
-            features, pm = cal_file_features(file_name)
 
-            if pm is None:
-                continue
-            features = add_labels(features)
 
-            remove_file_duplicate_tracks(features, pm)
-            # logger.info(features.shape)
-            features = predict_labels(
-                features, melody_model, bass_model, chord_model, drum_model)
-            # logger.info(features.shape)
-
-            progs = []
-
-            melody_tracks = np.count_nonzero(features.is_melody == True)
-
-            bass_tracks = np.count_nonzero(features.is_bass == True)
-
-            chord_tracks = np.count_nonzero(features.is_chord == True)
-
-            drum_tracks = np.count_nonzero(features.is_drum == True)
-
-            predicted_melody_tracks = np.count_nonzero(
-                features.melody_predict == True)
-
-            predicted_bass_tracks = np.count_nonzero(
-                features.bass_predict == True)
-
-            predicted_chord_tracks = np.count_nonzero(
-                features.chord_predict == True)
-
-            predicted_drum_tracks = np.count_nonzero(
-                features.drum_predict == True)
-
-            # if features.shape[0] < 2:
-            #     logger.info(f'track number is less than 2, skip {file_name}')
-            #     continue
-
-            temp_index = []
-
-            if melody_tracks > 0:
-                temp_index.append(
-                    features.index[np.where(features.is_melody == True)][0])
-
-            elif predicted_melody_tracks > 0:
-                predicted_melody_indices = features.index[np.where(
-                    features.melody_predict == True)]
-
-                if len(predicted_melody_indices) > 1:
-                    temp_index.append(predicted_melody_indices[np.argmax(
-                        features.loc[predicted_melody_indices, 'dur'].values)])
-                else:
-                    temp_index.append(predicted_melody_indices[0])
-            else:
-                if 'melody' in required_tracks:
-                    logger.info(f'no melody, skip {file_name}')
-                    continue
-                else:
-                    temp_index.append(-1)
-                    logger.debug(f'no melody track')
-
-            # logger.info(temp_index)
-
-            if temp_index[0] != -1:
-                progs.append(features.loc[temp_index[0], 'trk_prog'])
-            else:
-                progs.append(-1)
-
-            if bass_tracks > 0:
-                temp_index.append(
-                    features.index[np.where(features.is_bass == True)][0])
-            elif predicted_bass_tracks > 0:
-                predicted_bass_indices = features.index[np.where(
-                    features.bass_predict == True)]
-                if len(predicted_bass_indices) > 1:
-                    temp_index.append(predicted_bass_indices[np.argmax(
-                        features.loc[predicted_bass_indices, 'dur'].values)])
-                else:
-                    temp_index.append(predicted_bass_indices[0])
-            else:
-                if 'bass' in required_tracks:
-                    logger.info(f'no bass, skip {file_name}')
-                    continue
-                else:
-                    logger.debug('no bass')
-                    temp_index.append(-2)
-
-            if temp_index[1] != -2:
-                progs.append(features.loc[temp_index[1], 'trk_prog'])
-            else:
-                progs.append(-2)
-
-            # logger.info(temp_index)
-
-            if chord_tracks > 0:
-                temp_index.append(
-                    features.index[np.where(features.is_chord == True)][0])
-            elif predicted_chord_tracks > 0:
-                predicted_chord_indices = features.index[np.where(
-                    features.chord_predict == True)]
-                if len(predicted_chord_indices) > 1:
-                    temp_index.append(predicted_chord_indices[np.argmax(
-                        features.loc[predicted_chord_indices, 'dur'].values)])
-                else:
-                    temp_index.append(predicted_chord_indices[0])
-            else:
-                if 'chord' in required_tracks:
-                    logger.info(f'no chord, skip {file_name}')
-                    continue
-                else:
-                    logger.debug('no chord')
-                    temp_index.append(-3)
-
-            # logger.info(temp_index)
-            if temp_index[2] != -3:
-                progs.append(features.loc[temp_index[2], 'trk_prog'])
-            else:
-                progs.append(-3)
-
-            drum_exist = True
-            if drum_tracks > 0:
-                temp_index.append(
-                    features.index[np.where(features.is_drum == True)][0])
-            elif predicted_drum_tracks > 0:
-                predicted_drum_indices = features.index[np.where(
-                    features.drum_predict == True)]
-                if len(predicted_drum_indices) > 1:
-
-                    temp_index.append(predicted_drum_indices[np.argmax(
-                        features.loc[predicted_drum_indices, 'dur'].values)])
-                else:
-                    temp_index.append(predicted_drum_indices[0])
-            else:
-
-                if 'drum' in required_tracks:
-                    logger.info(f'no drum, skip {file_name}')
-                    continue
-                else:
-                    logger.debug('no drum')
-                    drum_exist = False
-                    temp_index.append(-5)
-
-            if temp_index[-1] != -5:
-                progs.append(0)
-            else:
-                progs.append(-5)
-
-            accompaniment_track = False
-
-            dur_sort_indices = features.dur[features.dur > 0.5].iloc[
-                np.argsort(features.dur[features.dur > 0.5])].index.values
-
-            for index in dur_sort_indices[5::-1]:
-                if index not in temp_index:
-                    if features.loc[index, 'trk_prog'] not in progs:
-                        if features.loc[index, 'trk_prog'] == 0:
-                            continue
-                        temp_index.insert(-1, index)
-                        accompaniment_track = True
-                        break
-
-            if 'accompaniment' in required_tracks and not accompaniment_track:
-                logger.info(f'no accompaniment, skip {file_name}')
-                continue
-            elif not accompaniment_track:
-                logger.debug('no accompaniment')
-                temp_index.insert(-1, -4)
-            else:
-                pass
-
-            if temp_index[-2] != -4:
-                progs.insert(-1, features.loc[temp_index[-2], 'trk_prog'])
-
-            else:
-                progs.insert(-1, -4)
-
-            # if np.sum(np.array(temp_index) >= 0) - int(drum_exist) < 2:
-            #     logger.info(f'result track number is 1, skip this {file_name}')
-            #     continue
-
-            result_program = {}
-            if -1 not in temp_index:
-                result_program['melody'] = int(progs[0])
-
-            if -2 not in temp_index:
-                result_program['bass'] = int(progs[1])
-
-            if -3 not in temp_index:
-                result_program['chord'] = int(progs[2])
-
-            if -4 not in temp_index:
-                result_program['accompaniment'] = int(progs[-2])
-
-            if -5 not in temp_index:
-                result_program['drum'] = int(progs[-1])
-
-            # logger.info(temp_index)
-            # logger.info(progs)
-            # logger.info(len(pm.instruments))
-            if drum_exist:
-                pm.instruments[temp_index[-1]].is_drum = True
-                pm.instruments[temp_index[-1]].program = 0
-            pm_new = deepcopy(pm)
-            pm_new.instruments = []
-            for i in temp_index:
-                if i >= 0:
-                    pm_new.instruments.append(deepcopy(pm.instruments[i]))
-
-            base_name = os.path.basename(file_name)
-            output_name = os.path.join(output_folder, base_name)
-            new_output_folder = os.path.dirname(output_name)
-
-            if not os.path.exists(new_output_folder):
-                os.makedirs(new_output_folder)
-            pm_new.write(output_name)
-            all_file_prog[output_name] = result_program
-
-            if save_program_file_step and idx + 1 == save_program_file_step:
-                save_predicted(all_file_prog, args.output_folder, step=idx + 1)
-
-        except Exception as e:
-            logger.warning(e)
-
+    # for idx, file_name in enumerate(all_names[:10]):
+    #     cal_one_file(all_names, idx, all_file_prog, output_folder, required_tracks, melody_model,bass_model,chord_model,drum_model,save_program_file_step)
+    # print(all_file_prog)
+    new_result = [i for i in result if i is not None]
+    for items in new_result:
+        name, prog = items
+        all_file_prog[name] = prog
     return all_file_prog
+
+
+def cal_one_file(file_names, idx, output_folder, required_tracks, melody_model,bass_model,chord_model,drum_model,required_only):
+    file_name = file_names[idx]
+    logger.debug(f'the file is {file_name}')
+
+
+    try:
+        features, pm = cal_file_features(file_name)
+
+        if pm is None:
+            return
+        features = add_labels(features)
+
+        remove_file_duplicate_tracks(features, pm)
+        # logger.info(features.shape)
+        features = predict_labels(
+            features, melody_model, bass_model, chord_model, drum_model)
+        # logger.info(features.shape)
+
+        progs = []
+
+        melody_tracks = np.count_nonzero(features.is_melody == True)
+
+        bass_tracks = np.count_nonzero(features.is_bass == True)
+
+        chord_tracks = np.count_nonzero(features.is_chord == True)
+
+        drum_tracks = np.count_nonzero(features.is_drum == True)
+
+        predicted_melody_tracks = np.count_nonzero(
+            features.melody_predict == True)
+
+        predicted_bass_tracks = np.count_nonzero(
+            features.bass_predict == True)
+
+        predicted_chord_tracks = np.count_nonzero(
+            features.chord_predict == True)
+
+        predicted_drum_tracks = np.count_nonzero(
+            features.drum_predict == True)
+
+        # if features.shape[0] < 2:
+        #     logger.info(f'track number is less than 2, skip {file_name}')
+        #     continue
+
+        temp_index = []
+
+        if melody_tracks > 0:
+            temp_index.append(
+                features.index[np.where(features.is_melody == True)][0])
+
+        elif predicted_melody_tracks > 0:
+            predicted_melody_indices = features.index[np.where(
+                features.melody_predict == True)]
+
+            if len(predicted_melody_indices) > 1:
+                temp_index.append(predicted_melody_indices[np.argmax(
+                    features.loc[predicted_melody_indices, 'dur'].values)])
+            else:
+                temp_index.append(predicted_melody_indices[0])
+        else:
+            if 'melody' in required_tracks:
+                logger.info(f'no melody, skip {file_name}')
+                return
+            else:
+                temp_index.append(-1)
+                logger.debug(f'no melody track')
+
+        # logger.info(temp_index)
+
+        if temp_index[0] != -1:
+            progs.append(features.loc[temp_index[0], 'trk_prog'])
+        else:
+            progs.append(-1)
+
+        if bass_tracks > 0:
+            temp_index.append(
+                features.index[np.where(features.is_bass == True)][0])
+        elif predicted_bass_tracks > 0:
+            predicted_bass_indices = features.index[np.where(
+                features.bass_predict == True)]
+            if len(predicted_bass_indices) > 1:
+                temp_index.append(predicted_bass_indices[np.argmax(
+                    features.loc[predicted_bass_indices, 'dur'].values)])
+            else:
+                temp_index.append(predicted_bass_indices[0])
+        else:
+            if 'bass' in required_tracks:
+                logger.info(f'no bass, skip {file_name}')
+                return
+            else:
+                logger.debug('no bass')
+                temp_index.append(-2)
+
+        if temp_index[1] != -2:
+            progs.append(features.loc[temp_index[1], 'trk_prog'])
+        else:
+            progs.append(-2)
+
+        # logger.info(temp_index)
+
+        if chord_tracks > 0:
+            temp_index.append(
+                features.index[np.where(features.is_chord == True)][0])
+        elif predicted_chord_tracks > 0:
+            predicted_chord_indices = features.index[np.where(
+                features.chord_predict == True)]
+            if len(predicted_chord_indices) > 1:
+                temp_index.append(predicted_chord_indices[np.argmax(
+                    features.loc[predicted_chord_indices, 'dur'].values)])
+            else:
+                temp_index.append(predicted_chord_indices[0])
+        else:
+            if 'chord' in required_tracks:
+                logger.info(f'no chord, skip {file_name}')
+                return
+            else:
+                logger.debug('no chord')
+                temp_index.append(-3)
+
+        # logger.info(temp_index)
+        if temp_index[2] != -3:
+            progs.append(features.loc[temp_index[2], 'trk_prog'])
+        else:
+            progs.append(-3)
+
+        drum_exist = True
+        if drum_tracks > 0:
+            temp_index.append(
+                features.index[np.where(features.is_drum == True)][0])
+        elif predicted_drum_tracks > 0:
+            predicted_drum_indices = features.index[np.where(
+                features.drum_predict == True)]
+            if len(predicted_drum_indices) > 1:
+
+                temp_index.append(predicted_drum_indices[np.argmax(
+                    features.loc[predicted_drum_indices, 'dur'].values)])
+            else:
+                temp_index.append(predicted_drum_indices[0])
+        else:
+
+            if 'drum' in required_tracks:
+                logger.info(f'no drum, skip {file_name}')
+                return
+            else:
+                logger.debug('no drum')
+                drum_exist = False
+                temp_index.append(-5)
+
+        if temp_index[-1] != -5:
+            progs.append(0)
+        else:
+            progs.append(-5)
+
+        accompaniment_track = False
+
+        dur_sort_indices = features.dur[features.dur > 0.5].iloc[
+            np.argsort(features.dur[features.dur > 0.5])].index.values
+
+        for index in dur_sort_indices[5::-1]:
+            if index not in temp_index:
+                if features.loc[index, 'trk_prog'] not in progs:
+                    if features.loc[index, 'trk_prog'] == 0:
+                        continue
+                    temp_index.insert(-1, index)
+                    accompaniment_track = True
+                    break
+
+        if 'accompaniment' in required_tracks and not accompaniment_track:
+            logger.info(f'no accompaniment, skip {file_name}')
+            return
+        elif not accompaniment_track:
+            logger.debug('no accompaniment')
+            temp_index.insert(-1, -4)
+        else:
+            pass
+
+        if temp_index[-2] != -4:
+            progs.insert(-1, features.loc[temp_index[-2], 'trk_prog'])
+
+        else:
+            progs.insert(-1, -4)
+
+        # if np.sum(np.array(temp_index) >= 0) - int(drum_exist) < 2:
+        #     logger.info(f'result track number is 1, skip this {file_name}')
+        #     continue
+
+        result_program = {}
+
+
+        if -1 not in temp_index:
+            result_program['melody'] = int(progs[0])
+
+        if -2 not in temp_index:
+            result_program['bass'] = int(progs[1])
+
+        if -3 not in temp_index:
+            result_program['chord'] = int(progs[2])
+
+        if -4 not in temp_index:
+            result_program['accompaniment'] = int(progs[-2])
+
+        if -5 not in temp_index:
+            result_program['drum'] = int(progs[-1])
+
+        # logger.info(temp_index)
+        # logger.info(progs)
+        # logger.info(len(pm.instruments))
+        if drum_exist:
+            pm.instruments[temp_index[-1]].is_drum = True
+            pm.instruments[temp_index[-1]].program = 0
+        pm_new = deepcopy(pm)
+        pm_new.instruments = []
+        if required_only:
+            required_track_list = []
+            if 'melody' in required_tracks:
+                required_track_list.append(0)
+            if 'bass' in required_tracks:
+                required_track_list.append(1)
+            if 'chord' in required_tracks:
+                required_track_list.append(2)
+            if 'drum' in required_tracks:
+                required_track_list.append(4)
+            if 'accompaniment' in required_tracks:
+                required_track_list.append(3)
+
+        for index,track_index in enumerate(temp_index):
+            if track_index >= 0:
+                if required_only:
+                    if index in required_track_list:
+                        pm_new.instruments.append(deepcopy(pm.instruments[track_index]))
+                else:
+                    pm_new.instruments.append(deepcopy(pm.instruments[track_index]))
+
+        base_name = os.path.basename(file_name)
+        output_name = os.path.join(output_folder, base_name)
+        new_output_folder = os.path.dirname(output_name)
+
+        if not os.path.exists(new_output_folder):
+            os.makedirs(new_output_folder)
+        pm_new.write(output_name)
+        # all_file_prog[output_name] = result_program
+        return file_name, result_program
+
+    except Exception as e:
+        logger.warning(e)
 
 
 def get_args(default='.') -> Namespace:
@@ -1092,11 +1138,14 @@ def get_args(default='.') -> Namespace:
     parser.add_argument('-t', '--required_tracks', default='melody', type=str,
                         help="output file criteria, a list of name for output tracks,"
                              "the list can be 'melody','bass','chord',"
-                             "'accomaniment','drum'")
-    parser.add_argument('--save-step', default=None, type=int,
-                        help="save program results file on each step (number of predicted files)")
+                             "'accompaniment','drum'")
+    parser.add_argument('-y', '--required_only', default=False, type=bool,
+                        help="if True, only output files with tracks specified by required_tracks")
+
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="Verbose log output")
+    parser.add_argument('-c', '--cores',type=int, default=-1,
+                        help="number of cores to use")
     return parser.parse_args()
 
 
@@ -1153,11 +1202,21 @@ if __name__ == "__main__":
         all_names = walk(args.input_folder)
 
     total_file_len = len(all_names)
+    cores = args.cores if args.cores > 0 else multiprocessing.cpu_count()
+    required_only = args.required_only
+    logger.info(f"required track only: {required_only}")
     logger.info(f'total file {total_file_len}')
-    all_file_prog = predict(all_names, args.input_folder,
-                            args.output_folder,
-                            args.required_tracks,
-                            melody_model, bass_model, chord_model, drum_model)
+    logger.info(f'CPU cores {cores}')
+
+    all_file_prog = {}
+    result = Parallel(n_jobs=cores, backend='multiprocessing')(
+        delayed(cal_one_file)(all_names, idx, args.output_folder, args.required_tracks, melody_model, bass_model,
+                              chord_model, drum_model,required_only) for idx in range(0, len(all_names)))
+    new_result = [i for i in result if i is not None]
+    for items in new_result:
+        name, prog = items
+        all_file_prog[name] = prog
+
     save_predicted(all_file_prog, args.output_folder)
 
     result_file_len = len(all_file_prog.keys())
