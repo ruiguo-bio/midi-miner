@@ -377,7 +377,7 @@ def pitch(pm: PrettyMIDI) -> ndarray:
             np.count_nonzero(get_piano_roll(track), 1))
 
         mode_pitch = scipy.stats.mode(pitch_array)
-        mode_pitch = mode_pitch.mode[0]
+        mode_pitch = mode_pitch.mode
 
         # logger.info(mode_pitch)
 
@@ -474,7 +474,7 @@ def pitch_intervals(pm: PrettyMIDI) -> ndarray:
             different_interval.append(len(np.unique(intervals)))
             largest_interval.append(np.max(intervals))
             smallest_interval.append(np.min(intervals))
-            mode_interval.append(scipy.stats.mode(intervals).mode[0])
+            mode_interval.append(scipy.stats.mode(intervals).mode)
             std_interval.append(np.std(intervals))
         else:
             different_interval.append(-1)
@@ -1139,8 +1139,8 @@ def get_args(default='.') -> Namespace:
                         help="output file criteria, a list of name for output tracks,"
                              "the list can be 'melody','bass','chord',"
                              "'accompaniment','drum'")
-    parser.add_argument('-y', '--required_only', default=False, type=bool,
-                        help="if True, only output files with tracks specified by required_tracks")
+    parser.add_argument('-y', '--required_tracks_only', default=False, type=bool,
+                        help="if True, output files with the tracks specified by required_tracks, not including other tracks not specified by required_tracks")
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="Verbose log output")
@@ -1169,16 +1169,13 @@ if __name__ == "__main__":
         open(running_dir + '/drum_model', 'rb'))
 
     if not os.path.exists(args.output_folder):
-        os.makedirs(args.output_folder, exist_ok=True)
+        os.makedirs(args.output_folder)
 
     logger = logging.getLogger(__name__)
 
     logger.handlers = []
 
     output_json_name = os.path.join(args.output_folder, "files_result.json")
-
-    if not os.path.exists(args.output_folder):
-        os.makedirs(args.output_folder, exist_ok=True)
 
     logfile = args.output_folder + '/track_separate.log'
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO,
@@ -1200,10 +1197,9 @@ if __name__ == "__main__":
         args.input_folder = os.path.dirname(args.file_name)
     else:
         all_names = walk(args.input_folder)
-
     total_file_len = len(all_names)
     cores = args.cores if args.cores > 0 else multiprocessing.cpu_count()
-    required_only = args.required_only
+    required_only = args.required_tracks_only
     logger.info(f"required track only: {required_only}")
     logger.info(f'total file {total_file_len}')
     logger.info(f'CPU cores {cores}')

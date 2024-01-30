@@ -2,17 +2,20 @@
 Python MIDI track classifier and tonal tension calculation based on spiral array theory
 
 ## installation
+1. Clone the repository 
 
-### pip
-ensure your python version > 3.8:
+    
+    git clone https://github.com/ruiguo-bio/midi-miner.git
+2. Create a virtual environment and activate it, using python 3.8 or higher
 
-pip install -r requirements.txt
+   
+    python3 -m venv venv
 
-### conda
+    source venv/bin/activate
 
-conda env create -f environment.yml
-
-conda activate midi-miner
+    pip3 install -r requirements.txt
+3. Download the random forest model from google drive to the current folder
+Google Drive link: https://drive.google.com/drive/folders/1OCGTZnxOenp3K351PWtaaqd8OfFn7XkW?usp=sharing
 
 
 ## Usage
@@ -56,5 +59,3 @@ Guo R, Simpson I, Magnusson T, Kiefer C., Herremans D..  2020.  A variational au
   year={2020}
 }
 ```
-
-

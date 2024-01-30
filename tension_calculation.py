@@ -829,6 +829,19 @@ def chord_to_key_pos(chord_indices: List[int], key_pos: int) -> ndarray:
     return diffs
 
 
+def chord_to_chord_pos(chord_indices: List[int], chord_pos: int) -> ndarray:
+    chord_positions = []
+    for chord_index in chord_indices:
+        chord_positions.append(major_triad_position(
+            note_index_to_pitch_index[chord_index]))
+
+    for chord_index in chord_indices:
+        chord_positions.append(minor_triad_position(
+            note_index_to_pitch_index[chord_index]))
+    diffs = np.linalg.norm(np.array(chord_positions)-chord_pos, axis=1)
+    return diffs
+
+
 def key_to_key_pos(key_indices: List[int], key_pos: int) -> ndarray:
     key_positions = []
     for key_index in key_indices:
@@ -977,12 +990,19 @@ if __name__ == "__main__":
                 s = music21.converter.parse(file_name)
                 # s = music21.converter.parse(files[i][:-12] + '_remi.mid')
 
+                # Filter out unpitched elements from the stream
+                # This creates a new stream with only elements that have a pitch attribute
+                pitched_elements = music21.stream.Stream()
+                for el in s.recurse():
+                    if 'Note' in el.classes or 'Chord' in el.classes:
+                        pitched_elements.append(el)
+
                 p = music21.analysis.discrete.KrumhanslSchmuckler()
                 p1 = music21.analysis.discrete.TemperleyKostkaPayne()
                 p2 = music21.analysis.discrete.BellmanBudge()
-                key1 = p.getSolution(s).name
-                key2 = p1.getSolution(s).name
-                key3 = p2.getSolution(s).name
+                key1 = p.getSolution(pitched_elements).name
+                key2 = p1.getSolution(pitched_elements).name
+                key3 = p2.getSolution(pitched_elements).name
 
                 key1_name = key1.split()[0].upper()
                 key1_mode = key1.split()[1]
